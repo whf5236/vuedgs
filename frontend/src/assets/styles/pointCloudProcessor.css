@@ -1,0 +1,36 @@
+@import './common.css';
+
+.point-cloud-processor {
+  padding: var(--spacing-md) 0;
+  min-height: 700px;
+}
+
+.folder-list {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+/* 只保留特定于点云处理器的样式 */
+.folder-action {
+  margin-left: var(--spacing-sm);
+}
+
+.processing-options {
+  background-color: var(--light-color);
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.result-info {
+  background-color: var(--light-color);
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius-md);
+  margin-bottom: var(--spacing-md);
+  border: 1px solid var(--border-color);
+}
+
+/* 添加自定义滚动条类 */
+.folder-list {
+  composes: custom-scrollbar;
+}
