@@ -6,6 +6,7 @@ import threading
 import logging
 import numpy as np
 from flask import Blueprint, request, jsonify, current_app
+import sys
 
 import base64
 import io
@@ -26,32 +27,21 @@ training_tasks = {}
 
 
 # New wrapper function
-def run_training_script_wrapper(flask_app, source_path, model_path, user_id, task_id, params=None):
+def run_training_script_wrapper(root_path, source_path, model_path, user_id, task_id, params=None):
     """
     Wrapper to set up Flask app context for the training thread.
     """
-    logger.info(f"Training thread wrapper entered for task {task_id}. Setting up app context.")
-    try:
-        with flask_app.app_context():
-            logger.info(f"App context pushed for task {task_id}. Calling main training logic.")
-            _internal_run_training_script(source_path, model_path, user_id, task_id, params)
-            logger.info(f"Main training logic completed for task {task_id}.")
-    except Exception as e:
-        logger.error(f"Exception in run_training_script_wrapper for task {task_id}: {str(e)}", exc_info=True)
-        # Minimal error handling here as the main logic should handle its own state
-        if task_id in training_tasks:
-            training_tasks[task_id].update({
-                'status': 'failed',
-                'message': f'Wrapper error: {str(e)}',
-                'error': str(e),
-                'end_time': time.time()
-            })
+    logger.info(f"Training thread wrapper entered for task {task_id}.")
+    _internal_run_training_script(root_path, source_path, model_path, user_id, task_id, params)
+    logger.info(f"Main training logic completed for task {task_id}.")
 
-def _internal_run_training_script(source_path, model_path, user_id, task_id, params=None):
+
+def _internal_run_training_script(root_path, source_path, model_path, user_id, task_id, params=None):
     """
     运行训练脚本的函数 (internal logic, expects app context to be set)
 
     参数:
+        root_path: 应用根目录
         source_path: 源数据路径(COLMAP 处理后的数据）
         model_path: 模型保存路径
         user_id: 用户ID
@@ -85,9 +75,9 @@ def _internal_run_training_script(source_path, model_path, user_id, task_id, par
         training_tasks[task_id]['message'] = 'Starting training...'
 
         # 构建命令
-        script_path = os.path.join(current_app.root_path, 'gs', 'train.py') # Use current_app
+        script_path = os.path.join(root_path, 'gs', 'train.py') # Use passed root_path
         command = [
-            'python',
+            sys.executable,
             script_path,
             '--source_path', source_path,
             '--model_path', model_path
@@ -177,8 +167,6 @@ def _internal_run_training_script(source_path, model_path, user_id, task_id, par
         training_tasks[task_id]['output_logs'].append(start_message)
         logger.info(start_message)
         
-        # 注意：SplatvizNetwork连接相关代码已移除（WebSocket服务器已删除）
-
         # 使用简单的方式读取输出
         from threading import Thread
 
@@ -228,8 +216,6 @@ def _internal_run_training_script(source_path, model_path, user_id, task_id, par
                                 psnr_value = float(psnr_parts[1].split()[0])
                                 training_tasks[task_id]['psnr'] = psnr_value
                                 training_tasks[task_id]['message'] = f'PSNR: {psnr_value:.2f}'
-
-                                # 注意：可视化服务器PSNR更新代码已移除
                         except Exception as e:
                             logger.error(f"提取 PSNR 失败: {str(e)}")
 
@@ -240,8 +226,6 @@ def _internal_run_training_script(source_path, model_path, user_id, task_id, par
                             if len(parts) > 1:
                                 num_gaussians = int(parts[1].strip().split()[0])
                                 training_tasks[task_id]['num_gaussians'] = num_gaussians
-
-                                # 注意：可视化服务器高斯点数量更新代码已移除
                         except Exception as e:
                             logger.error(f"提取高斯点数量失败: {str(e)}")
 
@@ -254,20 +238,14 @@ def _internal_run_training_script(source_path, model_path, user_id, task_id, par
         stderr_thread.start()
 
         # 等待进程完成
-        return_code = process.wait()
+        process.wait()
 
         # 等待读取线程完成
         stdout_thread.join(timeout=2)
         stderr_thread.join(timeout=2)
 
-        # 添加进程结束信息到日志
-        end_message = f"Training process ended with return code: {return_code}"
-        training_tasks[task_id]['output_logs'].append(end_message)
-        logger.info(end_message)
-
         # 检查任务是否被取消
         if training_tasks[task_id]['status'] == 'cancelled':
-            # 如果任务被取消，强制终止进程
             try:
                 process.terminate()
                 logger.info(f"进程已终止: {task_id}")
@@ -276,9 +254,7 @@ def _internal_run_training_script(source_path, model_path, user_id, task_id, par
             return
 
         # 检查进程是否成功完成
-        return_code = process.wait()
-
-        # 添加进程结束信息到日志
+        return_code = process.returncode
         end_message = f"Training process ended with return code: {return_code}"
         training_tasks[task_id]['output_logs'].append(end_message)
         logger.info(end_message)
@@ -318,14 +294,13 @@ def _internal_run_training_script(source_path, model_path, user_id, task_id, par
         else:
             # 训练失败
             training_tasks[task_id]['status'] = 'failed'
-        training_tasks[task_id]['message'] = f'Training failed with code {return_code}'
-        
-        # 注意：WebSocket广播失败消息代码已移除
-        error_message = f"训练进程异常退出，返回码: {return_code}"  # 添加详细的错误信息
-        training_tasks[task_id]['error'] = error_message
-        training_tasks[task_id]['output_logs'].append(f"ERROR: {error_message}")
+            training_tasks[task_id]['message'] = f'Training failed with code {return_code}'
+            
+            error_message = f"训练进程异常退出，返回码: {return_code}"  # 添加详细的错误信息
+            training_tasks[task_id]['error'] = error_message
+            training_tasks[task_id]['output_logs'].append(f"ERROR: {error_message}")
 
-        logger.error(f"训练失败: {task_id}, 返回码: {return_code}")
+            logger.error(f"训练失败: {task_id}, 返回码: {return_code}")
 
     except Exception as e:
         # 处理异常
@@ -398,11 +373,11 @@ def start_training():
     logger.info(f"生成任务ID: {task_id}")
 
     # 启动训练线程
-    # 传递Flask app对象本身，而不是代理
-    app = current_app._get_current_object()
+    # 传递应用根目录，而不是整个app对象
+    root_path = current_app.root_path
     thread = threading.Thread(
         target=run_training_script_wrapper,
-        args=(app, source_path, model_path, user_id, task_id, training_params)
+        args=(root_path, source_path, model_path, user_id, task_id, training_params)
     )
     thread.daemon = True
     thread.start()

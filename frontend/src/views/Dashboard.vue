@@ -87,6 +87,18 @@
                 <TrainingVisualizationComponent />
               </div>
             </el-tab-pane>
+
+            <el-tab-pane name="gaussian-splatting">
+              <template #label>
+                <div class="tab-label">
+                  <el-icon><ElIconView /></el-icon>
+                  <span>高斯渲染</span>
+                </div>
+              </template>
+              <div class="tab-content">
+                <GaussianSplatting :selected-file="selectedFile" />
+              </div>
+            </el-tab-pane>
           </el-tabs>
         </el-card>
       </el-main>
@@ -103,6 +115,7 @@ import FilePreview from '@/components/FilePreview.vue';
 import PointCloudProcessor from '@/components/PointCloudProcessor.vue';
 import TrainingComponent from '@/components/TrainingComponent.vue';
 import TrainingVisualizationComponent from '@/components/RefactoredTrainingVisualization.vue';
+import GaussianSplatting from '@/components/GaussianSplatting.vue';
 import { eventBus } from '@/utils/eventBus';
 import {
   ElContainer,
@@ -140,6 +153,7 @@ export default {
     PointCloudProcessor,
     TrainingComponent,
     TrainingVisualizationComponent,
+    GaussianSplatting,
     ElContainer,
     ElHeader,
     ElMain,
@@ -199,19 +213,27 @@ export default {
     handleTabClick(tab) {
       // 如果切换到文件上传标签页，刷新文件列表
       if (tab.props.name === 'file-upload' && this.$refs.fileListComponent) {
-        this.$refs.fileListComponent.fetchFiles();
+        this.$refs.fileListComponent.refreshData();
       }
     },
 
-    handleUploadComplete() {
+    handleUploadComplete(data) {
       // Refresh the file list when upload is complete
-      this.$refs.fileListComponent.fetchFiles();
+      if (this.$refs.fileListComponent) {
+        this.$refs.fileListComponent.refreshData();
+      }
+      // If the upload response contains file info, select it.
+      if (data && data.file) {
+        this.selectedFile = data.file;
+        // Switch to the renderer tab
+        this.activeTab = 'gaussian-splatting';
+      }
     },
 
     handleRefreshFiles() {
       // 刷新文件列表
       if (this.$refs.fileListComponent) {
-        this.$refs.fileListComponent.fetchFiles();
+        this.$refs.fileListComponent.refreshData();
       }
     },
 

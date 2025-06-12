@@ -33,7 +33,7 @@ app.config['JWT_HEADER_TYPE'] = 'Bearer'  # 头部类型前缀
 # File upload configuration
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max upload size
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024 * 1024  # 1GB max upload size
 
 # Create upload folder if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -124,8 +124,7 @@ def login():
     try:
         # 获取原始请求数据
         raw_data = request.get_data()
-        print(f"原始请求数据: {raw_data}")
-        
+        print(f"原始请求数据: {raw_data}") 
         data = request.get_json()
         print(f"解析后的JSON数据: {data}")
         print(f"请求Content-Type: {request.content_type}")
@@ -403,11 +402,41 @@ def upload_folder():
     custom_folder_name = request.args.get('custom_folder_name') or request.form.get('custom_folder_name')
     print(f"文件夹上传 - 自定义文件夹名称 (URL 参数或表单): {custom_folder_name}")
 
-    return file_handler.handle_folder_upload(
-        request.files.getlist('files[]'),
-        current_user,
-        custom_folder_name=custom_folder_name
-    )
+    try:
+        # 处理文件夹上传
+        result = file_handler.handle_folder_upload(
+            request.files.getlist('files[]'),
+            current_user,
+            custom_folder_name=custom_folder_name
+        )
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'message': f'An error occurred: {str(e)}'}), 500
+
+@app.route('/api/upload_point_cloud/<username>', methods=['POST'])
+def upload_point_cloud_file(username):
+    """处理单个点云文件上传"""
+    if 'file' not in request.files:
+        return jsonify({'message': 'No file part'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'message': 'No selected file'}), 400
+
+    if file:
+        try:
+            # 使用新的处理函数直接保存到用户根目录
+            file_handler.save_point_cloud_file(file, username)
+            # 获取并返回新上传文件的完整信息
+            file_info = file_handler.get_file_info(username, file.filename)
+            return jsonify({
+                'message': 'Point cloud file uploaded successfully',
+                'file': file_info
+            }), 200
+        except Exception as e:
+            return jsonify({'message': str(e)}), 500
+    
+    return jsonify({'message': 'File upload failed'}), 400
 
 @app.route('/api/files/<username>/<path:filename>', methods=['GET'])
 # 移除 JWT 认证要求

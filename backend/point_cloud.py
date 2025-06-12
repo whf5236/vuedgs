@@ -397,52 +397,51 @@ def cancel_task(task_id):
     return jsonify({'message': 'Task cancelled successfully'}), 200
 
 @point_cloud_bp.route('/results', methods=['GET'])
-# 暂时移除 JWT 认证要求
-def get_results():
+def get_point_cloud_results():
     """
-    获取用户的点云处理结果列表
+    Scans for and returns a list of processed COLMAP folders for a given user.
+    This version has relaxed filtering to ensure all potential training folders are listed.
     """
-    # 使用请求参数中的用户名
-    user_id = request.args.get('username', 'default_user')
+    username = request.args.get('username')
+    if not username:
+        return jsonify({'error': 'Username is required'}), 400
 
-    # 构建用户数据文件夹路径
-    user_data_folder = os.path.join(current_app.root_path, 'data', user_id)
+    try:
+        user_data_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], username)
+        logger.info(f"Scanning for results in: {user_data_folder}")
 
-    # 检查用户数据文件夹是否存在
-    if not os.path.exists(user_data_folder) or not os.path.isdir(user_data_folder):
-        return jsonify({'results': []}), 200
+        if not os.path.exists(user_data_folder) or not os.path.isdir(user_data_folder):
+            logger.warning(f"User data folder not found for user '{username}' at '{user_data_folder}'")
+            return jsonify({'results': []})
 
-    # 获取所有结果文件夹（以 _colmap 结尾的文件夹）
-    results = []
-    for item in os.listdir(user_data_folder):
-        if item.endswith('_colmap'):
-            item_path = os.path.join(user_data_folder, item)
-            if os.path.isdir(item_path):
-                # 检查是否有处理摘要文件
-                summary_file = os.path.join(item_path, 'processing_summary.json')
-                if os.path.exists(summary_file):
+        results = []
+        for folder_name in os.listdir(user_data_folder):
+            folder_path = os.path.join(user_data_folder, folder_name)
+            if os.path.isdir(folder_path):
+                # Basic check: Add any folder that seems to be a COLMAP output.
+                # A more robust check could look for 'sparse' or 'images' subdirectories.
+                # For now, we list any folder ending with '_colmap' or containing 'colmap'.
+                if 'colmap' in folder_name.lower():
                     try:
-                        with open(summary_file, 'r') as f:
-                            summary = json.load(f)
-                            results.append(summary)
+                        creation_time = os.path.getctime(folder_path)
+                        result_item = {
+                            'folder_name': folder_name,
+                            'name': folder_name,
+                            'timestamp': creation_time,
+                            'created_time': creation_time, # For compatibility
+                            'output_folder': folder_path,
+                            'status': 'completed' # Assume completion
+                        }
+                        results.append(result_item)
                     except Exception as e:
-                        logger.error(f"Error reading summary file {summary_file}: {str(e)}")
-                else:
-                    # 如果没有摘要文件，创建基本信息
-                    # 获取原始文件夹名称（去掉 _colmap 后缀）
-                    original_folder_name = item[:-7]  # 去掉 _colmap
-                    # 构建原始文件夹路径
-                    original_folder_path = os.path.join(user_data_folder, original_folder_name)
-                    results.append({
-                        'folder_name': original_folder_name,
-                        'colmap_folder_name': item,
-                        'source_path': original_folder_path,  # 添加源路径
-                        'output_folder': item_path,
-                        'created_time': os.path.getctime(item_path),
-                        'status': 'completed'  # 如果文件夹存在，假设处理已完成
-                    })
+                        logger.error(f"Could not process folder {folder_path}: {e}")
 
-    # 按时间戳降序排序
-    results.sort(key=lambda x: x.get('timestamp', 0) if isinstance(x, dict) and 'timestamp' in x else 0, reverse=True)
+        logger.info(f"Found {len(results)} processed folders for user '{username}'.")
+        # Sort results by timestamp descending
+        results.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
 
-    return jsonify({'results': results}), 200
+        return jsonify({'results': results})
+
+    except Exception as e:
+        logger.error(f"Error fetching point cloud results for user '{username}': {str(e)}", exc_info=True)
+        return jsonify({'error': 'An internal error occurred while fetching results.'}), 500

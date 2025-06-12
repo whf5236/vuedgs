@@ -33,66 +33,84 @@
         </template>
       </el-result>
 
-      <!-- Folders View (Default) -->
+      <!-- Folders and Files View -->
       <div v-else>
-        <!-- Empty State -->
         <el-empty
-          v-if="!folders.length"
-          description="No folders found. Upload files to create folders."
+          v-if="!displayedItems.length"
+          description="No files or folders found. Upload some data to get started."
         >
           <template #image>
             <el-icon class="empty-icon"><FolderOpened /></el-icon>
           </template>
         </el-empty>
 
-        <!-- Folders List -->
         <div v-else>
-          <!-- Folder Sort/Filter Options -->
+          <!-- Filter Options -->
           <div class="folder-options">
-            <el-select v-model="folderSortOption" placeholder="Sort by" size="small">
+            <el-select v-model="sortOption" placeholder="Sort by" size="small">
               <el-option label="Newest first" value="date-desc" />
               <el-option label="Oldest first" value="date-asc" />
               <el-option label="Name (A-Z)" value="name-asc" />
               <el-option label="Name (Z-A)" value="name-desc" />
-              <el-option label="Most images" value="images-desc" />
             </el-select>
-
-            <el-tag type="info">{{ folders.length }} folder(s)</el-tag>
+            <el-tag type="info">{{ displayedItems.length }} item(s)</el-tag>
           </div>
 
-          <!-- Folder Grid -->
+          <!-- Items Grid -->
           <div class="folder-grid">
             <el-card
-              v-for="folder in sortedFolders"
-              :key="folder.name"
+              v-for="item in displayedItems"
+              :key="item.name"
               class="folder-card"
-              :class="{'folder-selected': selectedFolder === folder.name}"
-              @click="selectFolder(folder)"
+              :class="{
+                'folder-selected': (item.item_type === 'folder' && selectedFolder === item.name) || (item.item_type === 'file' && selectedFile && selectedFile.name === item.name)
+              }"
+              @click="selectItem(item)"
               shadow="hover"
               body-style="padding: 10px;"
             >
               <div class="folder-content">
                 <div class="folder-icon">
-                  <el-icon :color="folder.has_images ? '#409EFF' : '#909399'" size="30">
-                    <Folder />
-                  </el-icon>
+                  <!-- Folder Icon -->
+                  <template v-if="item.item_type === 'folder'">
+                    <el-icon v-if="item.type === 'point_cloud'" color="#67C23A" size="30">
+                      <ElIconConnection />
+                    </el-icon>
+                    <el-icon v-else :color="item.has_images ? '#409EFF' : '#909399'" size="30">
+                      <Folder />
+                    </el-icon>
+                  </template>
+                  <!-- File Icon -->
+                  <template v-else>
+                     <el-icon color="#A8A8A8" size="30"><Files /></el-icon>
+                  </template>
                 </div>
                 <div class="folder-info">
-                  <div class="folder-name" :title="folder.name">{{ folder.name }}</div>
+                  <div class="folder-name" :title="item.name">{{ item.name }}</div>
                   <div class="folder-meta">
-                    <el-tag v-if="folder.has_images" size="small" type="info" class="image-count">
-                      <el-icon><Picture /></el-icon> {{ folder.image_count }}
-                    </el-tag>
-                    <div class="folder-date">{{ formatDate(folder.created_time) }}</div>
+                    <!-- Folder Meta -->
+                    <template v-if="item.item_type === 'folder'">
+                      <el-tag size="small" :type="item.type === 'point_cloud' ? 'success' : 'info'">
+                        {{ item.type === 'point_cloud' ? 'Point Cloud' : 'Images' }}
+                      </el-tag>
+                      <el-tag v-if="item.has_images" size="small" type="info" class="image-count">
+                        <el-icon><Picture /></el-icon> {{ item.image_count }}
+                      </el-tag>
+                    </template>
+                     <!-- File Meta -->
+                    <template v-else>
+                       <el-tag size="small" type="warning">{{ formatFileSize(item.size) }}</el-tag>
+                    </template>
+                    <div class="folder-date">{{ formatDate(item.created_time) }}</div>
                   </div>
                 </div>
                 <div class="folder-actions">
                   <el-button
-                    v-if="folder.has_images"
+                    v-if="item.item_type === 'folder' && item.type !== 'point_cloud' && item.has_images"
                     type="primary"
                     size="small"
                     circle
-                    @click.stop="processFolder(folder)"
+                    @click.stop="processFolder(item)"
                     :icon="Histogram"
                     title="Process for point cloud"
                   />
@@ -116,7 +134,9 @@ import {
   FolderOpened,
   Picture,
   Refresh,
-  Histogram
+  Histogram,
+  Connection as ElIconConnection,
+  Files,
 } from '@element-plus/icons-vue';
 
 export default {
@@ -126,7 +146,9 @@ export default {
     FolderOpened,
     Picture,
     Refresh,
-    Histogram
+    Histogram,
+    ElIconConnection,
+    Files,
   },
   props: {
     selectedFile: {
@@ -147,11 +169,32 @@ export default {
       error: null,
       selectedFolder: null,
       folderSortOption: 'date-desc',
+      sortOption: 'date-desc',
       Refresh,
       Histogram
     }
   },
   computed: {
+    displayedItems() {
+      const folders = (this.folders || []).map(f => ({ ...f, item_type: 'folder' }));
+      const rootFiles = (this.files || []).map(f => ({ ...f, item_type: 'file' }));
+      const combined = [...folders, ...rootFiles];
+
+      return combined.sort((a, b) => {
+        switch (this.sortOption) {
+          case 'date-desc':
+            return b.created_time - a.created_time;
+          case 'date-asc':
+            return a.created_time - b.created_time;
+          case 'name-asc':
+            return a.name.localeCompare(b.name);
+          case 'name-desc':
+            return b.name.localeCompare(a.name);
+          default:
+            return 0;
+        }
+      });
+    },
     sortedFolders() {
       if (!this.folders.length) return [];
 
@@ -327,6 +370,14 @@ export default {
       console.log(`过滤前文件夹数量: ${originalCount}, 过滤后: ${this.folders.length}`);
     },
 
+    selectItem(item) {
+      if (item.item_type === 'folder') {
+        this.selectFolder(item);
+      } else {
+        this.selectFile(item);
+      }
+    },
+
     selectFolder(folder) {
       this.selectedFolder = folder.name;
       this.$emit('folder-selected', folder);
@@ -400,6 +451,7 @@ export default {
     },
 
     selectFile(file) {
+      this.selectedFolder = null;
       this.$emit('file-selected', file);
     },
 

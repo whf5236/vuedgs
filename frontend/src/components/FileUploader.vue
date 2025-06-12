@@ -49,6 +49,13 @@
             </span>
           </template>
         </el-tab-pane>
+        <el-tab-pane label="Point Cloud" name="pointcloud">
+          <template #label>
+            <span>
+              <el-icon><Connection /></el-icon> 点云文件
+            </span>
+          </template>
+        </el-tab-pane>
       </el-tabs>
 
       <div class="tab-content">
@@ -228,7 +235,21 @@
         <!-- Folder Upload -->
         <div v-if="activeTab === 'folder'" class="upload-form-container">
           <el-form label-position="top">
-            <el-form-item label="Select a folder to upload">
+            <el-form-item label="选择文件夹类型">
+              <el-radio-group v-model="folderType">
+                <el-radio-button label="images">待处理图片文件夹</el-radio-button>
+                <el-radio-button label="point_cloud">预处理点云文件夹</el-radio-button>
+              </el-radio-group>
+              <div class="form-tip">
+                <el-text type="info">
+                  - <strong>待处理图片文件夹</strong>: 包含需要被COLMAP处理的图片序列。
+                  <br/>
+                  - <strong>预处理点云文件夹</strong>: 包含可直接渲染的.ply或.splat文件。
+                </el-text>
+              </div>
+            </el-form-item>
+
+            <el-form-item label="选择要上传的文件夹">
               <el-upload
                 class="upload-demo"
                 action="#"
@@ -299,6 +320,48 @@
             class="upload-progress"
           />
         </div>
+
+        <!-- Point Cloud File Upload -->
+        <div v-if="activeTab === 'pointcloud'" class="upload-form-container">
+          <el-form label-position="top">
+            <el-form-item label="选择 .ply 或 .splat 文件">
+              <el-upload
+                class="upload-demo"
+                drag
+                action="#"
+                :auto-upload="false"
+                :on-change="handlePointCloudFileChange"
+                :file-list="pointCloudFile ? [pointCloudFile] : []"
+                accept=".ply,.splat"
+                ref="pointCloudFileUpload"
+              >
+                <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+                <div class="el-upload__text">拖拽上传或者 <em>点击上传</em></div>
+                 <template #tip>
+                  <div class="el-upload__tip">
+                    <el-text type="info">支持 .ply 和 .splat 格式的点云文件</el-text>
+                  </div>
+                </template>
+              </el-upload>
+            </el-form-item>
+            <el-form-item class="upload-button-container">
+              <el-button
+                type="primary"
+                :loading="uploading"
+                @click="uploadPointCloudFile"
+                :disabled="!pointCloudFile"
+                size="large"
+              >
+                {{ uploading ? '上传中...' : '上传点云文件' }}
+              </el-button>
+            </el-form-item>
+          </el-form>
+          <el-progress
+            v-if="pointCloudProgress > 0 && pointCloudProgress < 100"
+            :percentage="pointCloudProgress"
+            status="primary"
+          />
+        </div>
       </div>
     </el-card>
   </div>
@@ -312,7 +375,8 @@ import {
   Folder,
   Picture,
   VideoCamera,
-  UploadFilled
+  UploadFilled,
+  Connection,
 } from '@element-plus/icons-vue';
 import {
   ElTabs,
@@ -328,26 +392,32 @@ export default {
     VideoCamera,
     UploadFilled,
     ElTabs,
-    ElTabPane
+    ElTabPane,
+    Connection,
   },
   data() {
     return {
       singleFile: null,
       multipleFiles: [],
       folderFiles: [],
+      folderPath: '',
       uploading: false,
       error: null,
       success: null,
       singleFileProgress: 0,
       multipleFilesProgress: 0,
       folderProgress: 0,
+      wsClient: null,
+      folderType: 'images', // 'images' or 'point_cloud'
       activeTab: 'single', // 添加当前活动标签页状态
       lastUploadedFolder: null, // 最后上传的文件夹名称
       frameRate: 5, // 默认帧率为每秒5帧
       extractAllFrames: false, // 是否提取所有帧
       customFolderName: '', // 文件夹上传的自定义文件夹名称
       customVideoFolderName: '', // 视频上传的自定义文件夹名称
-      customImagesFolderName: '' // 图片上传的自定义文件夹名称
+      customImagesFolderName: '', // 图片上传的自定义文件夹名称
+      pointCloudFile: null,
+      pointCloudProgress: 0,
     }
   },
   computed: {
@@ -412,6 +482,21 @@ export default {
       this.error = null;
       this.success = null;
       this.folderProgress = 0;
+      this.folderPath = fileList.length > 0 ? fileList[0].raw.webkitRelativePath.split('/')[0] : '';
+    },
+
+    handlePointCloudFileChange(file, fileList) {
+      if (fileList.length > 1) {
+        fileList.splice(0, 1);
+      }
+      const isPointCloud = file.name.endsWith('.ply') || file.name.endsWith('.splat');
+      if (!isPointCloud) {
+        this.$message.error('请选择 .ply 或 .splat 格式的文件');
+        this.pointCloudFile = null;
+        this.$refs.pointCloudFileUpload.clearFiles();
+        return;
+      }
+      this.pointCloudFile = file;
     },
 
     uploadSingleFile() {
@@ -562,56 +647,42 @@ export default {
       });
     },
 
-    uploadFolder() {
-      if (!this.folderFiles.length) return;
+    async uploadFolder() {
+      if (this.folderFiles.length === 0) {
+        this.$message.error('Please select a folder first');
+        return;
+      }
+      
+      const formData = new FormData();
+      this.folderFiles.forEach(file => {
+        formData.append('files', file.raw, file.raw.webkitRelativePath);
+      });
+      
+      formData.append('folder_name', this.folderPath);
+      formData.append('folder_type', this.folderType); // Add folder type to form data
 
       this.uploading = true;
       this.error = null;
       this.success = null;
+      this.folderProgress = 0;
 
-      const formData = new FormData();
-      this.folderFiles.forEach(file => {
-        formData.append('files[]', file);
-      });
-
-      // 获取文件夹名称
-      let folderName = '';
-      let originalFolderName = '';
-      if (this.folderFiles.length > 0) {
-        // 从第一个文件的路径中提取文件夹名称
-        const path = this.folderFiles[0].webkitRelativePath;
-        originalFolderName = path.split('/')[0];
-
-        // 使用自定义文件夹名称（如果有）
-        folderName = this.customFolderName.trim() || originalFolderName;
-      }
-
-      // 添加自定义文件夹名称到表单数据
-      if (this.customFolderName.trim()) {
-        formData.append('custom_folder_name', this.customFolderName.trim());
-      }
-
-      // 检查用户是否已登录
-      if (!this.$store.getters.isAuthenticated) {
-        this.$message.error('请先登录');
-        return;
-      }
-
-      const username = this.$store.getters.user?.username;
-      const token = this.$store.state.token;
-
-      // 使用JWT认证发送请求
-      axios.post('http://localhost:5000/api/upload-folder', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${token}`
-        },
-        withCredentials: false,
-        onUploadProgress: (progressEvent) => {
-          this.folderProgress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+      try {
+        const username = this.$store.getters.user?.username;
+        if (!username) {
+          this.$message.error('User not logged in');
+          this.uploading = false;
+          return;
         }
-      })
-      .then(response => {
+
+        const response = await axios.post(`http://localhost:5000/api/upload_folder/${username}`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          },
+          onUploadProgress: progressEvent => {
+            this.folderProgress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          }
+        });
+
         this.success = response.data.message;
 
         // 清空上传组件
@@ -620,7 +691,7 @@ export default {
         }
 
         // 保存最后上传的文件夹名称
-        this.lastUploadedFolder = folderName;
+        this.lastUploadedFolder = this.customFolderName.trim() || this.folderPath;
 
         // 清空文件列表
         this.folderFiles = [];
@@ -628,21 +699,65 @@ export default {
         // 发出上传完成事件
         this.$emit('upload-complete', {
           ...response.data,
-          folderName: folderName
+          folderName: this.lastUploadedFolder
         });
 
         // 通知父组件刷新文件列表
         this.$emit('refresh-files');
-      })
-      .catch(err => {
+      } catch (err) {
         this.error = err.response?.data?.message || 'Upload failed. Please try again.';
-      })
-      .finally(() => {
+      } finally {
         this.uploading = false;
         setTimeout(() => {
           this.folderProgress = 0;
         }, 2000);
-      });
+      }
+    },
+
+    async uploadPointCloudFile() {
+      if (!this.pointCloudFile) {
+        this.$message.error('Please select a point cloud file');
+        return;
+      }
+
+      this.uploading = true;
+      this.error = null;
+      this.success = null;
+      this.pointCloudProgress = 0;
+
+      const formData = new FormData();
+      formData.append('file', this.pointCloudFile.raw);
+
+      try {
+        const username = this.$store.getters.user?.username;
+        if (!username) {
+          this.$message.error('User not logged in');
+          this.uploading = false;
+          return;
+        }
+
+        const response = await axios.post(`http://localhost:5000/api/upload_point_cloud/${username}`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          },
+          onUploadProgress: progressEvent => {
+            this.pointCloudProgress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          }
+        });
+
+        this.success = response.data.message;
+        this.$emit('upload-complete', { file: response.data.file });
+        this.$refs.pointCloudFileUpload.clearFiles();
+        this.pointCloudFile = null;
+
+      } catch (err) {
+        this.error = err.response?.data?.message || 'Upload failed. Please try again.';
+      } finally {
+        this.uploading = false;
+        setTimeout(() => {
+          this.pointCloudProgress = 0;
+        }, 2000);
+      }
     }
   }
 }

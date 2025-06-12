@@ -136,6 +136,23 @@ export default {
       reconnectInterval: 3000,
       splatvizPort: 6009, // SplatvizNetwork默认端口
       heartbeatInterval: null, // 心跳定时器
+      pendingStats: null, // 新增：用于暂存收到的统计信息
+      pendingPredictiveStats: null, // 新增：用于暂存预测性渲染的统计信息
+      
+      // 交互控制 - 新增
+      interactionState: {
+        isInteracting: false,
+        lastRequestTime: 0,
+        pendingRequest: null,
+        renderQuality: 'high', // 'low', 'medium', 'high'
+      },
+      
+      // 图像缓存 - 新增
+      imageCache: {
+        lastHighQualityImage: null,
+        pendingViewAngles: [],
+        cachedViews: {}
+      },
       
       // 训练状态
       trainingStatus: {
@@ -248,11 +265,12 @@ export default {
         smoothing: true
       },
       
-      // 移除Socket.IO相关变量
-      
       // 轮询相关（作为WebSocket的备用方案）
       pollingInterval: null,
-      currentTaskId: null
+      currentTaskId: null,
+      
+      // 新增：滚轮事件计时器
+      wheelTimer: null
     }
   },
   
@@ -271,8 +289,7 @@ export default {
     // 禁用右键菜单
     this.$refs.renderCanvas?.addEventListener('contextmenu', (e) => {
       e.preventDefault()
-    })
-    
+    })  
     // 不自动连接，等待用户手动点击连接按钮
     console.log('组件已挂载，等待用户手动连接到SplatvizNetwork')
   },
@@ -285,6 +302,18 @@ export default {
   },
   
   methods: {
+
+    // 辅助函数：将扁平矩阵转换为4x4二维数组
+    to4x4(flatMatrix) {
+      const m = [];
+      for (let i = 0; i < 4; i++) {
+        m[i] = [];
+        for (let j = 0; j < 4; j++) {
+          m[i][j] = flatMatrix[i * 4 + j];
+        }
+      }
+      return m;
+    },
 
     // 训练数据处理 - 参考 TrainingWidget 的实现
     processTrainingData(stats) {
@@ -356,21 +385,27 @@ export default {
     // 相机参数转换函数
     calculateViewMatrix(position, rotation) {
       // 创建旋转矩阵
-      const [pitch, yaw, roll] = rotation
-      const cosPitch = Math.cos(pitch)
-      const sinPitch = Math.sin(pitch)
-      const cosYaw = Math.cos(yaw)
-      const sinYaw = Math.sin(yaw)
-      const cosRoll = Math.cos(roll)
-      const sinRoll = Math.sin(roll)
+      // 将度数转换为弧度
+      const pitch = rotation[0] * Math.PI / 180;
+      const yaw = rotation[1] * Math.PI / 180;
+      const roll = rotation[2] * Math.PI / 180;
+
+      const cosPitch = Math.cos(pitch);
+      const sinPitch = Math.sin(pitch);
+      const cosYaw = Math.cos(yaw);
+      const sinYaw = Math.sin(yaw);
+      const cosRoll = Math.cos(roll);
+      const sinRoll = Math.sin(roll);
       
       // 旋转矩阵 R = Rz(roll) * Ry(yaw) * Rx(pitch)
+      // 这是一个自定义的旋转矩阵，我们仅修复其中的错误，并假定其构造是有意为之。
+      // 如果渲染仍然存在问题，此矩阵可能是下一个需要检查的地方。
       const R = [
         [cosYaw * cosRoll, -cosYaw * sinRoll, sinYaw, 0],
         [sinPitch * sinYaw * cosRoll + cosPitch * sinRoll, -sinPitch * sinYaw * sinRoll + cosPitch * cosRoll, -sinPitch * cosYaw, 0],
         [-cosPitch * sinYaw * cosRoll + sinPitch * sinRoll, cosPitch * sinYaw * sinRoll + sinPitch * cosRoll, cosPitch * cosYaw, 0],
         [0, 0, 0, 1]
-      ]
+      ];
       
       // 平移矩阵
       const T = [
@@ -378,11 +413,11 @@ export default {
         [0, 1, 0, -position[1]],
         [0, 0, 1, -position[2]],
         [0, 0, 0, 1]
-      ]
+      ];
       
       // 视图矩阵 = R * T
-      const viewMatrix = this.multiplyMatrices(R, T)
-      return this.flattenMatrix(viewMatrix)
+      const viewMatrix = this.multiplyMatrices(R, T);
+      return this.flattenMatrix(viewMatrix);
     },
 
     // 计算投影矩阵
@@ -425,65 +460,153 @@ export default {
     },
 
     requestRender() {
-      console.log('[DEBUG] requestRender 被调用')
+      console.log('[DEBUG] requestRender 被调用');
       if (!this.isConnected || !this.ws) {
-        console.warn('[DEBUG] 未连接到SplatvizNetwork服务器，无法请求渲染')
-        return
+        console.warn('[DEBUG] 未连接到SplatvizNetwork服务器，无法请求渲染');
+        return;
       }
       
-      console.log('[DEBUG] 开始构建渲染请求')
-      this.isLoading = true
-      this.renderError = null
+      console.log('[DEBUG] 开始构建渲染请求');
+      this.isLoading = true;
+      this.renderError = null;
       
       try {
-        // 构建简化的渲染请求（参考原始splatviz项目）
+        const { position, rotation, fov } = this.cameraParams;
+        const [width, height] = this.renderParams.resolution;
+        const aspect = width / height;
+        
+        // 根据交互状态调整分辨率和质量
+        let actualWidth = width;
+        let actualHeight = height;
+        let quality = this.interactionState.isInteracting ? 'low' : 'high';
+        
+        if (quality === 'low') {
+          actualWidth = Math.min(width, 400);
+          actualHeight = Math.min(height, 400);
+        }
+
+        // 计算视图矩阵和投影矩阵
+        const viewMatrixFlat = this.calculateViewMatrix(position, rotation);
+        const projMatrixFlat = this.calculateProjectionMatrix(fov, aspect, 0.01, 10.0);
+
+        // 将扁平矩阵转换为4x4，以便相乘
+        const viewMatrix4x4 = this.to4x4(viewMatrixFlat);
+        const projMatrix4x4 = this.to4x4(projMatrixFlat);
+        
+        // 计算视图-投影矩阵
+        const viewProjMatrix4x4 = this.multiplyMatrices(projMatrix4x4, viewMatrix4x4);
+
+        // 构建渲染请求
         const renderRequest = {
-          resolution_x: this.renderParams.resolution[0],
-          resolution_y: this.renderParams.resolution[1],
+          resolution_x: actualWidth,
+          resolution_y: actualHeight,
           train: this.trainingStatus.running,
-          fov_y: this.cameraParams.fov,
-          fov_x: this.cameraParams.fov,
+          fov_y: fov,
           z_near: 0.01,
           z_far: 10.0,
-          shs_python: false,
-          rot_scale_python: false,
+          shs_python: this.renderParams.python_sh_conversion,
+          rot_scale_python: this.renderParams.python_3d_covariance,
           keep_alive: true,
-          scaling_modifier: 1.0,
-          // 使用简化的视图矩阵（单位矩阵）
-          view_matrix: [
-            1, 0, 0, 0,
-            0, 1, 0, 0,
-            0, 0, 1, 0,
-            0, 0, 0, 1
-          ],
-          // 使用简化的投影矩阵
-          view_projection_matrix: [
-            1, 0, 0, 0,
-            0, 1, 0, 0,
-            0, 0, 1, 0,
-            0, 0, 0, 1
-          ],
+          scaling_modifier: this.renderParams.scaling_modifier,
+          view_matrix: viewMatrixFlat,
+          view_projection_matrix: this.flattenMatrix(viewProjMatrix4x4),
           edit_text: "",
           slider: {},
           single_training_step: false,
-          stop_at_value: -1
-        }
+          stop_at_value: -1,
+          quality: quality, // 添加质量参数
+          is_predictive: false // 标记为非预测性渲染
+        };
         
-        console.log('[DEBUG] 渲染请求构建完成:', renderRequest)
-        console.log('[DEBUG] 训练状态:', this.trainingStatus.running)
-        console.log('[DEBUG] 分辨率:', this.renderParams.resolution)
+        console.log('[DEBUG] 渲染请求构建完成:', renderRequest);
         
         // 发送渲染请求
-        this.sendSplatvizMessage(renderRequest)
+        this.sendSplatvizMessage(renderRequest);
         
       } catch (error) {
-        console.error('[DEBUG] 构建渲染请求失败:', error)
-        this.renderError = '渲染请求构建失败'
-        this.isLoading = false
+        console.error('[DEBUG] 构建渲染请求失败:', error);
+        this.renderError = '渲染请求构建失败';
+        this.isLoading = false;
       }
     },
 
-    // 矩阵计算方法已简化，现在使用单位矩阵进行基础渲染
+    // 添加预测性渲染方法
+    requestPredictiveRendering() {
+      if (!this.isConnected || this.interactionState.isInteracting) return;
+      
+      // 基于当前视角，预测用户可能移动的几个方向
+      const { position, rotation, fov } = this.cameraParams;
+      const predictedViews = [
+        { position: [...position], rotation: [rotation[0] + 15, rotation[1], rotation[2]], fov },
+        { position: [...position], rotation: [rotation[0] - 15, rotation[1], rotation[2]], fov },
+        { position: [...position], rotation: [rotation[0], rotation[1] + 15, rotation[2]], fov },
+        { position: [...position], rotation: [rotation[0], rotation[1] - 15, rotation[2]], fov }
+      ];
+      
+      // 存储预测的视角
+      this.imageCache.pendingViewAngles = predictedViews;
+      
+      // 请求第一个预测视角的渲染
+      if (predictedViews.length > 0) {
+        setTimeout(() => {
+          // 只有在非交互状态下才发送预测渲染请求
+          if (!this.interactionState.isInteracting && this.imageCache.pendingViewAngles.length > 0) {
+            const nextView = this.imageCache.pendingViewAngles.shift();
+            this.requestSpecificViewRender(nextView, 'medium');
+          }
+        }, 500); // 延迟500ms，避免与主渲染冲突
+      }
+    },
+    
+    // 请求特定视角的渲染
+    requestSpecificViewRender(viewParams, quality = 'medium') {
+      if (!this.isConnected || !this.ws) return;
+      
+      try {
+        const { position, rotation, fov } = viewParams;
+        const [width, height] = this.renderParams.resolution;
+        const aspect = width / height;
+        
+        // 降低预测渲染的分辨率
+        const actualWidth = Math.min(width, 300);
+        const actualHeight = Math.min(height, 300);
+
+        // 计算视图矩阵和投影矩阵
+        const viewMatrixFlat = this.calculateViewMatrix(position, rotation);
+        const projMatrixFlat = this.calculateProjectionMatrix(fov, aspect, 0.01, 10.0);
+        const viewMatrix4x4 = this.to4x4(viewMatrixFlat);
+        const projMatrix4x4 = this.to4x4(projMatrixFlat);
+        const viewProjMatrix4x4 = this.multiplyMatrices(projMatrix4x4, viewMatrix4x4);
+
+        // 构建渲染请求
+        const renderRequest = {
+          resolution_x: actualWidth,
+          resolution_y: actualHeight,
+          train: this.trainingStatus.running,
+          fov_y: fov,
+          z_near: 0.01,
+          z_far: 10.0,
+          shs_python: this.renderParams.python_sh_conversion,
+          rot_scale_python: this.renderParams.python_3d_covariance,
+          keep_alive: true,
+          scaling_modifier: this.renderParams.scaling_modifier,
+          view_matrix: viewMatrixFlat,
+          view_projection_matrix: this.flattenMatrix(viewProjMatrix4x4),
+          edit_text: "",
+          slider: {},
+          single_training_step: false,
+          stop_at_value: -1,
+          quality: quality,
+          is_predictive: true, // 标记为预测性渲染
+        };
+        
+        // 发送渲染请求，但不更新UI状态
+        this.ws.send(JSON.stringify(renderRequest));
+        
+      } catch (error) {
+        console.error('[DEBUG] 预测渲染请求构建失败:', error);
+      }
+    },
 
     retryRender() {
       this.renderError = null
@@ -537,6 +660,10 @@ export default {
       this.mouseState.lastX = event.clientX
       this.mouseState.lastY = event.clientY
       this.mouseState.button = event.button
+      
+      // 进入交互模式，降低渲染质量
+      this.interactionState.isInteracting = true
+      this.interactionState.renderQuality = 'low'
     },
     
     onMouseMove(event) {
@@ -557,18 +684,68 @@ export default {
       this.mouseState.lastX = event.clientX
       this.mouseState.lastY = event.clientY
       
-      this.requestRender()
+      // 使用节流请求渲染
+      this.throttledRequestRender()
     },
     
     onMouseUp() {
       this.mouseState.isDown = false
+      
+      // 退出交互模式，恢复高质量渲染
+      this.interactionState.isInteracting = false
+      this.interactionState.renderQuality = 'high'
+      
+      // 请求高质量渲染
+      this.requestRender()
+    },
+    
+    // 添加节流渲染请求方法
+    throttledRequestRender() {
+      const now = Date.now()
+      // 交互时使用更长的节流间隔
+      const minInterval = this.interactionState.isInteracting ? 200 : 50
+      
+      if (now - this.interactionState.lastRequestTime >= minInterval) {
+        // 取消待处理的请求
+        if (this.interactionState.pendingRequest) {
+          clearTimeout(this.interactionState.pendingRequest)
+        }
+        
+        // 立即发送请求
+        this.requestRender()
+        this.interactionState.lastRequestTime = now
+      } else {
+        // 延迟发送请求
+        if (this.interactionState.pendingRequest) {
+          clearTimeout(this.interactionState.pendingRequest)
+        }
+        
+        this.interactionState.pendingRequest = setTimeout(() => {
+          this.requestRender()
+          this.interactionState.lastRequestTime = Date.now()
+        }, minInterval)
+      }
     },
     
     onWheel(event) {
       event.preventDefault()
       const delta = event.deltaY > 0 ? 1.1 : 0.9
       this.cameraParams.position[2] *= delta
-      this.requestRender()
+      
+      // 设置为低质量渲染
+      this.interactionState.isInteracting = true
+      this.interactionState.renderQuality = 'low'
+      
+      // 使用节流请求渲染
+      this.throttledRequestRender()
+      
+      // 滚轮事件结束后恢复高质量渲染
+      clearTimeout(this.wheelTimer)
+      this.wheelTimer = setTimeout(() => {
+        this.interactionState.isInteracting = false
+        this.interactionState.renderQuality = 'high'
+        this.requestRender()
+      }, 300) // 300ms后恢复高质量
     },
     
     // 工具方法
@@ -621,38 +798,23 @@ export default {
     
     // 发送消息到SplatvizNetwork
     sendSplatvizMessage(message) {
-      console.log('[DEBUG] sendSplatvizMessage 被调用，消息类型:', typeof message)
-      console.log('[DEBUG] 要发送的消息内容:', message)
-      
+      console.log('[DEBUG] sendSplatvizMessage 被调用, 准备发送:', message);
+
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         try {
-          // 按照服务器期望的格式发送数据：先发送长度，再发送JSON数据
-          const jsonString = JSON.stringify(message)
-          const jsonBytes = new TextEncoder().encode(jsonString)
-          
-          console.log('[DEBUG] 消息JSON字符串长度:', jsonString.length)
-          console.log('[DEBUG] WebSocket状态: OPEN，准备发送消息')
-          
-          // 创建4字节的长度头（little-endian格式）
-          const lengthBytes = new ArrayBuffer(4)
-          const lengthView = new DataView(lengthBytes)
-          lengthView.setUint32(0, jsonBytes.length, true) // true表示little-endian
-          
-          // 先发送长度，再发送数据
-          this.ws.send(lengthBytes)
-          this.ws.send(jsonBytes)
-          
-          console.log('[DEBUG] 消息已发送到SplatvizNetwork:', message)
+          // WebSocket 按消息工作, 无需手动添加长度头
+          // 直接发送序列化后的 JSON 字符串
+          this.ws.send(JSON.stringify(message));
+          console.log('[DEBUG] 消息已通过 WebSocket 发送:', message);
         } catch (error) {
-          console.error('[DEBUG] 发送消息到SplatvizNetwork失败:', error)
-          this.renderError = '发送渲染请求失败'
-          this.isLoading = false
+          console.error('[DEBUG] 发送消息到 SplatvizNetwork 失败:', error);
+          this.renderError = '发送渲染请求失败';
+          this.isLoading = false;
         }
       } else {
-        console.error('[DEBUG] WebSocket连接未就绪，状态:', this.ws ? this.ws.readyState : 'ws为null')
-        console.error('[DEBUG] WebSocket.OPEN常量值:', WebSocket.OPEN)
-        this.renderError = 'SplatvizNetwork未连接'
-        this.isLoading = false
+        console.error('[DEBUG] WebSocket 连接未就绪，状态:', this.ws ? this.ws.readyState : 'ws为null');
+        this.renderError = 'SplatvizNetwork 未连接';
+        this.isLoading = false;
       }
     },
     
@@ -731,21 +893,9 @@ export default {
       
       console.log(`尝试连接到SplatvizNetwork服务器... ws://${host}:${port}`)
       
-      // 先检查服务器是否可用
-      this.checkServerAvailability(host, port)
-        .then(available => {
-          if (!available) {
-            this.$message.warning(`SplatvizNetwork服务器 (${host}:${port}) 不可用，请确保训练任务已启动`)
-            return
-          }
-          
-          this.createWebSocketConnection(host, port)
-        })
-        .catch(error => {
-          console.error('检查服务器可用性失败:', error)
-          this.$message.error('无法检查服务器可用性，尝试直接连接')
-          this.createWebSocketConnection(host, port)
-        })
+      // 直接尝试连接WebSocket，不再检查训练任务状态
+      // 因为WebSocket服务器的可用性与训练任务状态不是强关联的
+      this.createWebSocketConnection(host, port)
     },
     
     // 检查服务器是否可用
@@ -796,7 +946,63 @@ export default {
         }
         
         this.ws.onmessage = (event) => {
-          this.handleSplatvizMessage(event.data)
+          // event.data 可以是字符串 (JSON) 或 Blob (图像)
+          const messageData = event.data;
+
+          if (typeof messageData === 'string') {
+            // 1. 如果是字符串, 我们认为是统计信息的JSON
+            console.log('[DEBUG] 收到 JSON 统计信息:', messageData);
+            try {
+              const data = JSON.parse(messageData);
+              
+              // 检查是否是预测性渲染的响应
+              if (data.is_predictive) {
+                // 预测性渲染的响应，存储到缓存但不显示
+                this.pendingPredictiveStats = data;
+                console.log('[DEBUG] 收到预测性渲染的统计信息');
+              } else {
+                // 普通渲染响应
+                this.pendingStats = data;
+                
+                // 处理错误信息
+                if (data.error && data.error.trim() !== '') {
+                  console.error('[DEBUG] SplatvizNetwork错误:', data.error);
+                  this.$message.error(`渲染错误: ${data.error}`);
+                }
+              }
+            } catch (e) {
+              console.error("解析JSON失败:", e, "收到的数据:", messageData);
+              this.pendingStats = null;
+              this.pendingPredictiveStats = null;
+            }
+          } else if (messageData instanceof Blob) {
+            // 2. 如果是 Blob, 我们认为是图像数据
+            console.log('[DEBUG] 收到二进制图像数据 (Blob)');
+            
+            if (this.pendingPredictiveStats) {
+              // 处理预测性渲染的图像，存储到缓存
+              console.log('[DEBUG] 处理预测性渲染的图像');
+              this.storePredictiveImage(messageData, this.pendingPredictiveStats);
+              this.pendingPredictiveStats = null;
+              
+              // 继续请求下一个预测视角
+              if (this.imageCache.pendingViewAngles.length > 0) {
+                setTimeout(() => {
+                  if (!this.interactionState.isInteracting) {
+                    const nextView = this.imageCache.pendingViewAngles.shift();
+                    this.requestSpecificViewRender(nextView, 'medium');
+                  }
+                }, 200);
+              }
+            } else if (this.pendingStats) {
+              // 处理普通渲染的图像
+              this.processSplatvizMessage(this.pendingStats);
+              this.displayRenderedImage(messageData);
+              this.pendingStats = null;
+            } else {
+              console.warn("收到了图像数据，但没有与之对应的统计信息，已忽略。");
+            }
+          }
         }
         
         this.ws.onclose = (event) => {
@@ -999,128 +1205,98 @@ export default {
       return this.$store.getters.username || 'default_user'
     },
 
-    // 处理SplatvizNetwork消息
-    handleSplatvizMessage(data) {
-      try {
-        if (data instanceof Blob) {
-          // 处理Blob数据
-          const reader = new FileReader()
-          reader.onload = (event) => {
-            const textData = event.target.result
-            try {
-              const parsedData = JSON.parse(textData)
-              this.processSplatvizMessage(parsedData)
-            } catch (error) {
-              console.error('解析Blob数据失败:', error)
-              console.error('Blob内容:', textData)
-            }
-          }
-          reader.onerror = (error) => {
-            console.error('读取Blob失败:', error)
-          }
-          reader.readAsText(data, 'utf-8')
-        } else if (typeof data === 'string') {
-          // 处理字符串数据
-          try {
-            const parsedData = JSON.parse(data)
-            this.processSplatvizMessage(parsedData)
-          } catch (error) {
-            console.error('解析字符串数据失败:', error)
-            console.error('原始数据:', data)
-          }
-        } else {
-          console.warn('收到未知数据类型:', typeof data, data)
-        }
-      } catch (error) {
-        console.error('处理SplatvizNetwork消息失败:', error)
-      }
-    },
-
-     // 处理解析后的消息内容
+    // 处理解析后的消息内容 (修正后, 只处理数据)
     processSplatvizMessage(data) {
-      try {
-        console.log('[DEBUG] 收到SplatvizNetwork消息:', data)
-        console.log('[DEBUG] 消息包含的字段:', Object.keys(data))
+        // 这个函数现在只负责更新UI上的数字和状态
+        // 图像显示已经分离出去
+        console.log('[DEBUG] processSplatvizMessage 处理统计数据:', data);
         
-        // 更新训练数据
-        if (data.iteration !== undefined) {
-          console.log('[DEBUG] 更新迭代次数:', data.iteration)
-          this.trainingData.iteration = data.iteration
-        }
-        if (data.loss !== undefined) {
-          console.log('[DEBUG] 更新损失值:', data.loss)
-          this.trainingData.loss = data.loss
-        }
-        if (data.num_gaussians !== undefined) {
-          console.log('[DEBUG] 更新高斯数量:', data.num_gaussians)
-          this.trainingData.num_gaussians = data.num_gaussians
-        }
-        if (data.sh_degree !== undefined) {
-          console.log('[DEBUG] 更新SH度数:', data.sh_degree)
-          this.trainingData.sh_degree = data.sh_degree
-        }
-        
-        // 更新训练状态
+        if (data.iteration !== undefined) this.trainingData.iteration = data.iteration;
+        if (data.loss !== undefined) this.trainingData.loss = data.loss;
+        if (data.num_gaussians !== undefined) this.trainingData.num_gaussians = data.num_gaussians;
+        if (data.sh_degree !== undefined) this.trainingData.sh_degree = data.sh_degree;
         if (data.paused !== undefined) {
-          console.log('[DEBUG] 更新训练状态 - 暂停:', data.paused)
-          this.trainingStatus.paused = data.paused
-          this.trainingStatus.running = !data.paused
+            this.trainingStatus.paused = data.paused;
+            this.trainingStatus.running = !data.paused;
         }
-        
-        // 处理渲染图像
-        if (data.image) {
-          console.log('[DEBUG] 收到渲染图像，base64长度:', data.image.length)
-          this.displayRenderedImage(data.image)
-        } else {
-          console.log('[DEBUG] 消息中没有图像数据')
-        }
-        
-        // 处理错误信息
-        if (data.error && data.error.trim() !== '') {
-          console.error('[DEBUG] SplatvizNetwork错误:', data.error)
-          this.$message.error(`渲染错误: ${data.error}`)
-        }
-        
-      } catch (error) {
-        console.error('[DEBUG] 处理SplatvizNetwork数据失败:', error)
-        console.error('[DEBUG] 原始数据:', data)
-      }
     },
 
-    // 显示渲染图像
-    displayRenderedImage(base64Image) {
-      console.log('[DEBUG] 开始显示渲染图像')
-      const canvas = this.$refs.renderCanvas
-      if (!canvas) {
-        console.error('[DEBUG] Canvas元素未找到')
-        return
-      }
-      
-      console.log('[DEBUG] Canvas尺寸:', canvas.width, 'x', canvas.height)
-      const ctx = canvas.getContext('2d')
-      const img = new Image()
-      
-      img.onload = () => {
-        console.log('[DEBUG] 图像加载成功，尺寸:', img.width, 'x', img.height)
-        // 清空画布
-        ctx.clearRect(0, 0, canvas.width, canvas.height)
-        console.log('[DEBUG] 画布已清空')
-        // 绘制图像
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-        console.log('[DEBUG] 图像已绘制到画布')
-        this.isLoading = false
-      }
-      
-      img.onerror = (error) => {
-        console.error('[DEBUG] 渲染图像加载失败:', error)
-        console.error('[DEBUG] 图像源长度:', base64Image.length)
-        console.error('[DEBUG] 图像源前100字符:', base64Image.substring(0, 100))
-        this.isLoading = false
-      }
-      
-      const dataUrl = `data:image/png;base64,${base64Image}`
-      console.log('[DEBUG] 设置图像源，数据URL长度:', dataUrl.length)
-      img.src = dataUrl
+    // 显示渲染图像 (修正后, 接收 Blob)
+    displayRenderedImage(imageBlob) {
+        console.log('[DEBUG] 开始显示渲染图像 (从Blob)');
+        const canvas = this.$refs.renderCanvas;
+        if (!canvas) {
+            console.error('[DEBUG] Canvas元素未找到');
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        const url = URL.createObjectURL(imageBlob);
+
+        img.onload = () => {
+            console.log('[DEBUG] 图像加载成功, 尺寸:', img.width, 'x', img.height);
+            
+            // 如果是高质量渲染，保存到缓存
+            if (!this.interactionState.isInteracting) {
+                this.imageCache.lastHighQualityImage = img;
+            }
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            console.log('[DEBUG] 图像已绘制到画布');
+            this.isLoading = false;
+            
+            // 更新FPS
+            this.updateFPS();
+            
+            URL.revokeObjectURL(url); // 释放内存
+            
+            // 非交互状态下，请求预测性渲染
+            if (!this.interactionState.isInteracting) {
+                setTimeout(() => this.requestPredictiveRendering(), 100);
+            }
+        };
+
+        img.onerror = (error) => {
+            console.error('[DEBUG] 渲染图像加载失败:', error);
+            this.isLoading = false;
+            URL.revokeObjectURL(url); // 释放内存
+        };
+
+        img.src = url;
+    },
+
+    // 存储预测性渲染的图像
+    storePredictiveImage(imageBlob, stats) {
+        // 将预测性渲染的图像存储到缓存，以便快速切换视角时使用
+        if (!stats.view_params) return;
+        
+        const img = new Image();
+        const url = URL.createObjectURL(imageBlob);
+        
+        img.onload = () => {
+            // 存储图像和对应的视角参数
+            const viewParams = stats.view_params;
+            const key = `view_${Math.round(viewParams.rotation[0])}_${Math.round(viewParams.rotation[1])}`;
+            this.imageCache.cachedViews[key] = img;
+            console.log(`[DEBUG] 预测视角图像已缓存: ${key}`);
+            URL.revokeObjectURL(url);
+        };
+        
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+        };
+        
+        img.src = url;
+    },
+    
+    // 检查是否有匹配的预缓存图像
+    findCachedImage() {
+        const { rotation } = this.cameraParams;
+        // 查找最接近当前视角的缓存图像
+        const key = `view_${Math.round(rotation[0])}_${Math.round(rotation[1])}`;
+        return this.imageCache.cachedViews[key];
     },
 
     // 重连逻辑

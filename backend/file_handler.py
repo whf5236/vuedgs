@@ -241,6 +241,45 @@ def handle_folder_upload(files, username, custom_folder_name=None):
 
     return jsonify({'message': 'No valid files to upload'}), 400
 
+def get_file_info(username, filename):
+    """获取单个文件的信息"""
+    user_dir = get_user_directory(username)
+    file_path_on_disk = os.path.join(user_dir, filename)
+
+    if not os.path.exists(file_path_on_disk) or not os.path.isfile(file_path_on_disk):
+        return None
+
+    stat = os.stat(file_path_on_disk)
+    return {
+        'name': filename,
+        'path': f'/api/files/{username}/{filename}',
+        'size': stat.st_size,
+        'type': filename.rsplit('.', 1)[1].lower() if '.' in filename else 'unknown',
+        'created_time': stat.st_ctime,
+        'folder': None
+    }
+
+def save_point_cloud_file(file, username):
+    """直接保存点云文件到用户根目录"""
+    user_dir = get_user_directory(username)
+    filename = secure_filename(file.filename)
+    
+    # 确保文件扩展名是.ply或.splat
+    if not (filename.endswith('.ply') or filename.endswith('.splat')):
+        raise ValueError("Invalid file type. Only .ply and .splat are allowed.")
+        
+    file_path = os.path.join(user_dir, filename)
+    
+    # 如果文件已存在，可以考虑添加时间戳或直接覆盖
+    if os.path.exists(file_path):
+        # 简单起见，这里直接覆盖
+        print(f"File {filename} already exists. Overwriting.")
+        
+    file.save(file_path)
+    print(f"Point cloud file saved to: {file_path}")
+    
+    return file_path
+
 def get_user_file(username, filename):
     """获取用户文件"""
     user_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], username)
