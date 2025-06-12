@@ -14,7 +14,7 @@
               <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">加载中...</span>
               </div>
-              <p class="mt-3">Loading folders...</p>
+              <p class="mt-3">加载文件夹...</p>
             </div>
 
             <div v-else-if="folders.length === 0" class="text-center py-5">
@@ -53,13 +53,13 @@
         <div class="card shadow h-100">
           <div class="card-header py-3">
             <h6 class="m-0 font-weight-bold text-primary">
-              <i class="fas fa-cube me-2"></i> Point Cloud Processing
+              <i class="fas fa-cube me-2"></i> 点云处理
             </h6>
           </div>
           <div class="card-body">
             <div v-if="!selectedFolder && !currentTask" class="text-center py-5">
               <i class="fas fa-cube fa-4x text-muted mb-3"></i>
-              <p class="text-muted">Select a folder to process</p>
+              <p class="text-muted">选择文件夹进行处理</p>
               <p class="text-muted small">The processing may take several minutes depending on the number of images</p>
             </div>
 
