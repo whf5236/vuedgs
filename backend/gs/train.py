@@ -1,14 +1,3 @@
-#
-# Copyright (C) 2023, Inria
-# GRAPHDECO research group, https://team.inria.fr/graphdeco
-# All rights reserved.
-#
-# This software is free for non-commercial, research and evaluation use 
-# under the terms of the LICENSE.md file.
-#
-# For inquiries contact  george.drettakis@inria.fr
-#
-
 import os
 import torch
 from random import randint
@@ -50,113 +39,73 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     iter_start = torch.cuda.Event(enable_timing = True)
     iter_end = torch.cuda.Event(enable_timing = True)
 
-    # Correctly initialize max_radii2D if it's not done in the model
-    if gaussians.max_radii2D is None:
-        gaussians.max_radii2D = torch.zeros((gaussians.get_xyz.shape[0]), device="cuda")
-
     viewpoint_stack = scene.getTrainCameras().copy()
     ema_loss_for_log = 0.0
-
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
-
-    # 1. 在循环开始前，实例化并启动 WebSocket 服务器
     print(f"Initializing SplatvizNetwork WebSocket server on {ip}:{port}")
     network = SplatvizNetworkWs(host=ip, port=port)
-    server_thread = network.start_server_in_thread()
+    for iteration in range(first_iter, opt.iterations + 1):
+        iter_start.record()
+        gaussians.update_learning_rate(iteration)
+        if iteration % 1000 == 0:
+            gaussians.oneupSHdegree()
+        if not viewpoint_stack:
+            viewpoint_stack = scene.getTrainCameras().copy()
+        viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
+        # Render
+        if (iteration - 1) == debug_from:
+            pipe.debug = True
+        bg = torch.rand((3), device="cuda") if opt.random_background else background
+        render_pkg = render(viewpoint_cam, gaussians, pipe, bg)
+        image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
+        gt_image = viewpoint_cam.original_image.cuda()
+        Ll1 = l1_loss(image, gt_image)
+        ssim_value = ssim(image, gt_image)
+        loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim_value)
+        loss.backward()
+
+        with torch.no_grad():
+            # Progress bar
+            ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
+            
+            if iteration % 10 == 0:
+                progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}"})
+                progress_bar.update(10)
+            if iteration == opt.iterations:
+                progress_bar.close()       
+                print("\n[ITER {}] Saving Gaussians".format(iteration))
+                scene.save(iteration)
+
+            # Densification
+            if iteration < opt.densify_until_iter:
+                # Keep track of max radii in image-space for pruning
+                gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
+                gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
+
+                if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
+                    size_threshold = 20 if iteration > opt.opacity_reset_interval else None
+                    gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold, radii)
+                
+                if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
+                    gaussians.reset_opacity()
+
+            # Optimizer step
+            if iteration < opt.iterations:
+                if gaussians.optimizer is not None:
+                    gaussians.optimizer.step()
+                    gaussians.optimizer.zero_grad(set_to_none = True)
+
+            if (iteration in checkpoint_iterations):
+                print("\n[ITER {}] Saving Checkpoint".format(iteration))
+                torch.save((gaussians.capture(), iteration), scene.model_path + "/chkpnt" + str(iteration) + ".pth")
+
+            iter_end.record(torch.cuda.current_stream())
+            torch.cuda.synchronize()
+            iter_time = iter_start.elapsed_time(iter_end)
+            if iteration % 100 == 0:
+                print(f"Iteration {iteration} took {iter_time:.2f} ms")
     
-    # 等待服务器启动完成
-    import time
-    print("Waiting for WebSocket server to start...")
-    time.sleep(2)  # 等待2秒确保服务器完全启动
-    print("WebSocket server should be ready for connections.")
-
-    # 创建并启动持续渲染器
-    continuous_renderer = ContinuousRenderer(network, gaussians, pipe, background, scene)
-    continuous_renderer.start_continuous_rendering()
-
-    try:
-        for iteration in range(first_iter, opt.iterations + 1):
-            iter_start.record(torch.cuda.current_stream())
-                
-            gaussians.update_learning_rate(iteration)
-
-            # Every 1000 its we increase the levels of SH up to a maximum degree
-            if iteration % 1000 == 0:
-                gaussians.oneupSHdegree()
-
-            # Pick a random Camera
-            if not viewpoint_stack:
-                viewpoint_stack = scene.getTrainCameras().copy()
-
-            viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
-            # Render
-            if (iteration - 1) == debug_from:
-                pipe.debug = True
-
-            bg = torch.rand((3), device="cuda") if opt.random_background else background
-
-            render_pkg = render(viewpoint_cam, gaussians, pipe, bg)
-            image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
-
-            # Loss
-            gt_image = viewpoint_cam.original_image.cuda()
-            Ll1 = l1_loss(image, gt_image)
-     
-            ssim_value = ssim(image, gt_image)
-
-            loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim_value)
-
-            loss.backward()
-
-            with torch.no_grad():
-                # Progress bar
-                ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
-                
-                # 更新持续渲染器的训练统计信息
-                continuous_renderer.update_training_stats(iteration, ema_loss_for_log)
-                
-                if iteration % 10 == 0:
-                    progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}"})
-                    progress_bar.update(10)
-                if iteration == opt.iterations:
-                    progress_bar.close()       
-                    print("\n[ITER {}] Saving Gaussians".format(iteration))
-                    scene.save(iteration)
-
-                # Densification
-                if iteration < opt.densify_until_iter:
-                    # Keep track of max radii in image-space for pruning
-                    gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
-                    gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
-
-                    if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
-                        size_threshold = 20 if iteration > opt.opacity_reset_interval else None
-                        gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold, radii)
-                    
-                    if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
-                        gaussians.reset_opacity()
-
-                # Optimizer step
-                if iteration < opt.iterations:
-                    if gaussians.optimizer is not None:
-                        gaussians.optimizer.step()
-                        gaussians.optimizer.zero_grad(set_to_none = True)
-
-                if (iteration in checkpoint_iterations):
-                    print("\n[ITER {}] Saving Checkpoint".format(iteration))
-                    torch.save((gaussians.capture(), iteration), scene.model_path + "/chkpnt" + str(iteration) + ".pth")
-
-                iter_end.record(torch.cuda.current_stream())
-                torch.cuda.synchronize()
-                iter_time = iter_start.elapsed_time(iter_end)
-                if iteration % 100 == 0:
-                    print(f"Iteration {iteration} took {iter_time:.2f} ms")
-    
-    finally:
-        # 确保停止持续渲染器
-        continuous_renderer.stop_continuous_rendering()
-        print("训练完成，持续渲染器已停止")
 
 def prepare_output_and_logger(args):    
     if not args.model_path:
