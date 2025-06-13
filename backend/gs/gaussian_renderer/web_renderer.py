@@ -5,9 +5,6 @@ import torch
 from threading import Thread
 import websockets
 import websockets.client
-import websockets.connection
-import websockets.streams
-import websockets.uri
 import websockets.exceptions  # 添加异常处理模块
 import cv2  # 添加OpenCV用于图像压缩
 
@@ -22,7 +19,6 @@ class WebRenderer(Renderer):
         super().__init__()
         self.uri = f"ws://{host}:{port}"
         self._websocket = None
-        print(f"WebRenderer initialized. Will connect to: {self.uri}")
 
     async def _get_connection(self):
         if self._websocket and self._websocket.open:
