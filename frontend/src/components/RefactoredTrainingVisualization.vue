@@ -32,6 +32,7 @@
         :camera-params="cameraParams"
         @update-camera="updateCamera"
         @reset-camera="resetCamera"
+        @switch-control-mode="switchControlMode"
       />
 
       <!-- 训练统计组件 -->
@@ -101,10 +102,7 @@
 </template>
 
 <script>
-import { ref, reactive, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
-import { ElMessage, ElNotification } from 'element-plus'
 import axios from 'axios'
-// 移除Socket.IO，使用原生WebSocket连接到SplatvizNetwork
 import { Refresh, FullScreen, Camera, Warning } from '@element-plus/icons-vue'
 import TrainingControlWidget from './widgets/TrainingControlWidget.vue'
 import RenderControlWidget from './widgets/RenderControlWidget.vue'
@@ -128,16 +126,15 @@ export default {
   },
   data() {
     return {
-      // 原生WebSocket连接到SplatvizNetwork
       ws: null,
       isConnected: false,
       reconnectAttempts: 0,
       maxReconnectAttempts: 5,
       reconnectInterval: 3000,
-      splatvizPort: 6009, // SplatvizNetwork默认端口
-      heartbeatInterval: null, // 心跳定时器
-      pendingStats: null, // 新增：用于暂存收到的统计信息
-      pendingPredictiveStats: null, // 新增：用于暂存预测性渲染的统计信息
+      splatvizPort: 6009, 
+      heartbeatInterval: null, 
+      pendingStats: null, 
+      pendingPredictiveStats: null, 
       
       // 交互控制 - 新增
       interactionState: {
@@ -154,7 +151,53 @@ export default {
         cachedViews: {}
       },
       
-      // 训练状态
+      // 相机运动插值系统 - 新增
+      cameraAnimation: {
+        isAnimating: false,
+        startParams: null,
+        targetParams: null,
+        startTime: 0,
+        duration: 300, // 动画持续时间(ms)
+        easing: 'easeOutCubic'
+      },
+      
+      // 改进的鼠标交互状态 - 参考camera_widget.py
+      mouseState: {
+        isDown: false,
+        lastX: 0,
+        lastY: 0,
+        button: 0,
+        last_drag_delta: { x: 0, y: 0 },
+        // 动量系统 - 参考Python实现
+        momentum: {
+          enabled: true,
+          momentum_x: 0.0,
+          momentum_y: 0.0,
+          momentum_factor: 0.3,
+          momentum_dropoff: 0.8,
+          threshold: 0.001
+        }
+      },
+      
+      // 智能渲染控制
+      smartRender: {
+        adaptiveQuality: true,
+        performanceThreshold: 30, // FPS阈值
+        qualityLevels: {
+          low: { resolution: 0.5, quality: 0.3 },
+          medium: { resolution: 0.75, quality: 0.6 },
+          high: { resolution: 1.0, quality: 1.0 }
+        },
+        currentLevel: 'high'
+      },
+      
+      // 性能监控
+      performanceMonitor: {
+        frameHistory: [],
+        maxHistory: 60,
+        averageFPS: 60,
+        lastUpdateTime: 0
+      },
       trainingStatus: {
         paused: false,
         iteration: 0,
@@ -236,19 +279,29 @@ export default {
         python_3d_covariance: false
       },
       
-      // 相机参数
+      // 相机参数 - 参考camera_widget.py的设计
       cameraParams: {
-        fov: 50,
+        fov: 60,
+        radius: 5,
+        lookat_point: [0, 0, 0],
+        up_vector: [0, 1, 0],
+        pose: {
+          yaw: Math.PI,
+          pitch: 0
+        },
         position: [0, 0, 5],
-        rotation: [0, 0, 0]
-      },
-      
-      // 鼠标交互状态
-      mouseState: {
-        isDown: false,
-        lastX: 0,
-        lastY: 0,
-        button: 0
+        rotation: [0, 0, 0],
+        // 控制模式
+        control_modes: ['Orbit', 'WASD'],
+        current_control_mode: 0,
+        // 速度设置
+        move_speed: 0.02,
+        wasd_move_speed: 0.1,
+        drag_speed: 0.005,
+        rotate_speed: 0.002,
+        // 反转设置
+        invert_x: false,
+        invert_y: false
       },
       
       // 连接设置
@@ -303,6 +356,164 @@ export default {
   
   methods: {
 
+    throttledRequestRender() {
+      const now = Date.now()
+      // 根据交互状态和性能动态调整节流间隔
+      let minInterval = 50
+      
+      if (this.interactionState.isInteracting) {
+        minInterval = 100 // 交互时降低频率
+      }
+      
+      // 根据性能自适应调整
+      if (this.performanceMonitor.averageFPS < this.smartRender.performanceThreshold) {
+        minInterval = Math.max(minInterval, 200) // 性能不足时进一步降低频率
+      }
+      
+      if (now - this.interactionState.lastRequestTime >= minInterval) {
+        // 取消待处理的请求
+        if (this.interactionState.pendingRequest) {
+          clearTimeout(this.interactionState.pendingRequest)
+        }
+        
+        // 立即发送请求
+        this.requestRender()
+        this.interactionState.lastRequestTime = now
+      } else {
+        // 延迟发送请求
+        if (this.interactionState.pendingRequest) {
+          clearTimeout(this.interactionState.pendingRequest)
+        }
+        
+        this.interactionState.pendingRequest = setTimeout(() => {
+          this.requestRender()
+          this.interactionState.lastRequestTime = Date.now()
+        }, minInterval - (now - this.interactionState.lastRequestTime))
+      }
+    },
+    
+    // 相机动画系统
+    animateCameraTo(targetParams, duration = 300) {
+      if (this.cameraAnimation.isAnimating) {
+        this.stopCameraAnimation()
+      }
+      
+      this.cameraAnimation.isAnimating = true
+      this.cameraAnimation.startParams = {
+        position: [...this.cameraParams.position],
+        rotation: [...this.cameraParams.rotation],
+        fov: this.cameraParams.fov
+      }
+      this.cameraAnimation.targetParams = targetParams
+      this.cameraAnimation.startTime = performance.now()
+      this.cameraAnimation.duration = duration
+      
+      this.updateCameraAnimation()
+    },
+    
+    updateCameraAnimation() {
+      if (!this.cameraAnimation.isAnimating) return
+      
+      const now = performance.now()
+      const elapsed = now - this.cameraAnimation.startTime
+      const progress = Math.min(elapsed / this.cameraAnimation.duration, 1)
+      
+      // 缓动函数
+      const easedProgress = this.easeOutCubic(progress)
+      
+      // 插值计算
+      const { startParams, targetParams } = this.cameraAnimation
+      
+      this.cameraParams.position = [
+        this.lerp(startParams.position[0], targetParams.position[0], easedProgress),
+        this.lerp(startParams.position[1], targetParams.position[1], easedProgress),
+        this.lerp(startParams.position[2], targetParams.position[2], easedProgress)
+      ]
+      
+      this.cameraParams.rotation = [
+        this.lerp(startParams.rotation[0], targetParams.rotation[0], easedProgress),
+        this.lerp(startParams.rotation[1], targetParams.rotation[1], easedProgress),
+        this.lerp(startParams.rotation[2], targetParams.rotation[2], easedProgress)
+      ]
+      
+      if (targetParams.fov !== undefined) {
+        this.cameraParams.fov = this.lerp(startParams.fov, targetParams.fov, easedProgress)
+      }
+      
+      // 请求渲染
+      this.requestRender()
+      
+      if (progress < 1) {
+        requestAnimationFrame(() => this.updateCameraAnimation())
+      } else {
+        this.cameraAnimation.isAnimating = false
+      }
+    },
+    
+    stopCameraAnimation() {
+      this.cameraAnimation.isAnimating = false
+    },
+    
+    // 缓动函数
+    easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3)
+    },
+    
+    // 线性插值
+    lerp(start, end, t) {
+      return start + (end - start) * t
+    },
+    
+    // 智能质量调整
+    adjustRenderQuality() {
+      if (!this.smartRender.adaptiveQuality) return
+      
+      const avgFPS = this.performanceMonitor.averageFPS
+      const threshold = this.smartRender.performanceThreshold
+      
+      let newLevel = this.smartRender.currentLevel
+      
+      if (avgFPS < threshold * 0.7) {
+        newLevel = 'low'
+      } else if (avgFPS < threshold) {
+        newLevel = 'medium'
+      } else if (avgFPS > threshold * 1.2) {
+        newLevel = 'high'
+      }
+      
+      if (newLevel !== this.smartRender.currentLevel) {
+        this.smartRender.currentLevel = newLevel
+        console.log(`[性能优化] 渲染质量调整为: ${newLevel}, 当前FPS: ${avgFPS.toFixed(1)}`)
+      }
+    },
+    
+    // 性能监控更新
+    updatePerformanceMonitor() {
+      const now = performance.now()
+      
+      if (this.performanceMonitor.lastUpdateTime > 0) {
+        const deltaTime = now - this.performanceMonitor.lastUpdateTime
+        const fps = 1000 / deltaTime
+        
+        this.performanceMonitor.frameHistory.push(fps)
+        
+        // 保持历史记录在限制范围内
+        if (this.performanceMonitor.frameHistory.length > this.performanceMonitor.maxHistory) {
+          this.performanceMonitor.frameHistory.shift()
+        }
+        
+        // 计算平均FPS
+        const sum = this.performanceMonitor.frameHistory.reduce((a, b) => a + b, 0)
+        this.performanceMonitor.averageFPS = sum / this.performanceMonitor.frameHistory.length
+        
+        // 每秒调整一次质量
+        if (this.performanceMonitor.frameHistory.length % 60 === 0) {
+          this.adjustRenderQuality()
+        }
+      }
+      
+      this.performanceMonitor.lastUpdateTime = now
+    },
     // 辅助函数：将扁平矩阵转换为4x4二维数组
     to4x4(flatMatrix) {
       const m = [];
@@ -633,7 +844,6 @@ export default {
         }
       }
     },
-    
     // 相机控制方法
     updateCamera(params) {
       this.cameraParams = { ...this.cameraParams, ...params }
@@ -641,12 +851,7 @@ export default {
     },
     
     resetCamera() {
-      this.cameraParams = {
-        fov: 50,
-        position: [0, 0, 5],
-        rotation: [0, 0, 0]
-      }
-      this.requestRender()
+      this.resetCameraToDefault()
     },
     
     // 连接设置更新
@@ -654,98 +859,214 @@ export default {
       this.connectionSettings = { ...this.connectionSettings, ...settings }
     },
     
-    // 鼠标交互方法
+    // 鼠标交互方法 - 参考camera_widget.py的handle_dragging_in_window
     onMouseDown(event) {
       this.mouseState.isDown = true
       this.mouseState.lastX = event.clientX
       this.mouseState.lastY = event.clientY
       this.mouseState.button = event.button
+      this.mouseState.last_drag_delta = { x: 0, y: 0 }
       
       // 进入交互模式，降低渲染质量
       this.interactionState.isInteracting = true
-      this.interactionState.renderQuality = 'low'
+      
+      // 停止相机动画
+      this.stopCameraAnimation()
+      
+      // 重置动量
+      this.mouseState.momentum.momentum_x = 0
+      this.mouseState.momentum.momentum_y = 0
+      
+      event.preventDefault()
     },
     
     onMouseMove(event) {
-      if (!this.mouseState.isDown) return
+      if (!this.mouseState.isDown) {
+        // 应用动量效果
+        this.applyMomentumEffect()
+        return
+      }
       
-      const deltaX = event.clientX - this.mouseState.lastX
-      const deltaY = event.clientY - this.mouseState.lastY
+      const newDelta = {
+        x: event.clientX - this.mouseState.lastX,
+        y: event.clientY - this.mouseState.lastY
+      }
       
-      // 根据鼠标按键执行不同操作
-      if (this.mouseState.button === 0) { // 左键：旋转
-        this.cameraParams.rotation[1] += deltaX * 0.5
-        this.cameraParams.rotation[0] += deltaY * 0.5
-      } else if (this.mouseState.button === 2) { // 右键：平移
-        this.cameraParams.position[0] += deltaX * 0.01
-        this.cameraParams.position[1] -= deltaY * 0.01
+      const delta = {
+        x: newDelta.x - this.mouseState.last_drag_delta.x,
+        y: newDelta.y - this.mouseState.last_drag_delta.y
+      }
+      
+      this.mouseState.last_drag_delta = newDelta
+      
+      // 处理不同的鼠标按钮
+      if (this.mouseState.button === 0) { // 左键 - 旋转
+        this.handleRotationDrag(delta)
+      } else if (this.mouseState.button === 2 || this.mouseState.button === 1) { // 右键或中键 - 平移
+        this.handleTranslationDrag(delta)
       }
       
       this.mouseState.lastX = event.clientX
       this.mouseState.lastY = event.clientY
       
-      // 使用节流请求渲染
+      // 使用改进的节流渲染
       this.throttledRequestRender()
     },
     
-    onMouseUp() {
+    onMouseUp(event) {
       this.mouseState.isDown = false
+      this.mouseState.last_drag_delta = { x: 0, y: 0 }
       
-      // 退出交互模式，恢复高质量渲染
-      this.interactionState.isInteracting = false
-      this.interactionState.renderQuality = 'high'
+      // 延迟退出交互模式，允许动量效果
+      setTimeout(() => {
+        if (!this.mouseState.isDown) {
+          this.interactionState.isInteracting = false
+          // 请求高质量渲染
+          this.requestRender()
+        }
+      }, 100)
       
-      // 请求高质量渲染
-      this.requestRender()
+      // 动量效果会在applyMomentumEffect中自动处理
     },
     
-    // 添加节流渲染请求方法
-    throttledRequestRender() {
-      const now = Date.now()
-      // 交互时使用更长的节流间隔
-      const minInterval = this.interactionState.isInteracting ? 200 : 50
+    // 处理旋转拖拽 - 参考camera_widget.py
+    handleRotationDrag(delta) {
+      const xDir = this.cameraParams.invert_x ? -1 : 1
+      const yDir = this.cameraParams.invert_y ? -1 : 1
       
-      if (now - this.interactionState.lastRequestTime >= minInterval) {
-        // 取消待处理的请求
-        if (this.interactionState.pendingRequest) {
-          clearTimeout(this.interactionState.pendingRequest)
-        }
+      // 更新动量 - 参考Python实现
+      const momentum = this.mouseState.momentum
+      momentum.momentum_x = xDir * delta.x * this.cameraParams.rotate_speed * (1 - momentum.momentum_factor) + 
+                           (momentum.momentum_x * momentum.momentum_factor)
+      momentum.momentum_y = yDir * delta.y * this.cameraParams.rotate_speed * (1 - momentum.momentum_factor) + 
+                           (momentum.momentum_y * momentum.momentum_factor)
+    },
+    
+    // 处理平移拖拽 - 参考camera_widget.py
+    handleTranslationDrag(delta) {
+      const xDir = this.cameraParams.invert_x ? -1 : 1
+      const yDir = this.cameraParams.invert_y ? -1 : 1
+      
+      // 计算相机的右向量和上向量
+      const forward = this.getForwardVector()
+      const upVector = this.cameraParams.up_vector
+      
+      // 计算右向量
+      const right = this.crossProduct(forward, upVector)
+      const rightNorm = this.normalizeVector(right)
+      
+      // 计算相机上向量
+      const camUp = this.crossProduct(rightNorm, forward)
+      const camUpNorm = this.normalizeVector(camUp)
+      
+      // 计算位移
+      const xChange = this.scaleVector(rightNorm, -xDir * delta.x * this.cameraParams.drag_speed)
+      const yChange = this.scaleVector(camUpNorm, yDir * delta.y * this.cameraParams.drag_speed)
+      
+      // 更新相机位置
+      this.cameraParams.position = this.addVectors(
+        this.addVectors(this.cameraParams.position, xChange),
+        yChange
+      )
+      
+      // 如果是Orbit模式，同时更新lookat_point
+      if (this.cameraParams.control_modes[this.cameraParams.current_control_mode] === 'Orbit') {
+        this.cameraParams.lookat_point = this.addVectors(
+          this.addVectors(this.cameraParams.lookat_point, xChange),
+          yChange
+        )
+      }
+    },
+    
+    // 应用动量效果 - 参考camera_widget.py
+    applyMomentumEffect() {
+      const momentum = this.mouseState.momentum
+      
+      // 应用动量到相机姿态
+      this.cameraParams.pose.yaw += momentum.momentum_x
+      this.cameraParams.pose.pitch += momentum.momentum_y
+      
+      // 衰减动量
+      momentum.momentum_x *= momentum.momentum_dropoff
+      momentum.momentum_y *= momentum.momentum_dropoff
+      
+      // 限制俯仰角度
+      this.cameraParams.pose.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.cameraParams.pose.pitch))
+      
+      // 如果动量足够大，继续渲染
+      if (Math.abs(momentum.momentum_x) > momentum.threshold || Math.abs(momentum.momentum_y) > momentum.threshold) {
+        this.updateCameraFromPose()
+        this.throttledRequestRender()
+      }
+    },
+    
+    // 根据姿态更新相机位置 - 参考camera_widget.py的handle_wasd
+    updateCameraFromPose() {
+      const mode = this.cameraParams.control_modes[this.cameraParams.current_control_mode]
+      
+      if (mode === 'Orbit') {
+        // Orbit模式：根据yaw, pitch, radius计算相机位置
+        this.cameraParams.position = this.getOrigin(
+          this.cameraParams.pose.yaw + Math.PI / 2,
+          this.cameraParams.pose.pitch + Math.PI / 2,
+          this.cameraParams.radius,
+          this.cameraParams.lookat_point,
+          this.cameraParams.up_vector
+        )
         
-        // 立即发送请求
-        this.requestRender()
-        this.interactionState.lastRequestTime = now
-      } else {
-        // 延迟发送请求
-        if (this.interactionState.pendingRequest) {
-          clearTimeout(this.interactionState.pendingRequest)
-        }
+        // 计算前向向量
+        const forward = this.normalizeVector(
+          this.subtractVectors(this.cameraParams.lookat_point, this.cameraParams.position)
+        )
+        this.cameraParams.forward = forward
         
-        this.interactionState.pendingRequest = setTimeout(() => {
-          this.requestRender()
-          this.interactionState.lastRequestTime = Date.now()
-        }, minInterval)
+      } else if (mode === 'WASD') {
+        // WASD模式：根据姿态计算前向向量
+        this.cameraParams.forward = this.getForwardVector(
+          this.cameraParams.position,
+          this.cameraParams.pose.yaw + Math.PI / 2,
+          this.cameraParams.pose.pitch + Math.PI / 2,
+          0.01,
+          this.cameraParams.up_vector
+        )
       }
     },
     
     onWheel(event) {
       event.preventDefault()
-      const delta = event.deltaY > 0 ? 1.1 : 0.9
-      this.cameraParams.position[2] *= delta
       
-      // 设置为低质量渲染
+      // 清除之前的滚轮计时器
+      if (this.wheelTimer) {
+        clearTimeout(this.wheelTimer)
+      }
+      
+      // 进入交互模式
       this.interactionState.isInteracting = true
-      this.interactionState.renderQuality = 'low'
       
-      // 使用节流请求渲染
+      const wheel = event.deltaY > 0 ? 1 : -1
+      const mode = this.cameraParams.control_modes[this.cameraParams.current_control_mode]
+      
+      if (mode === 'WASD') {
+        // WASD模式：沿前向向量移动
+        const forward = this.cameraParams.forward || this.getForwardVector()
+        const moveDistance = this.cameraParams.move_speed * wheel
+        const movement = this.scaleVector(forward, moveDistance)
+        this.cameraParams.position = this.addVectors(this.cameraParams.position, movement)
+      } else if (mode === 'Orbit') {
+        // Orbit模式：调整半径
+        this.cameraParams.radius -= wheel / 10
+        this.cameraParams.radius = Math.max(0.1, this.cameraParams.radius) // 防止半径过小
+        this.updateCameraFromPose()
+      }
+      
+      // 使用节流渲染
       this.throttledRequestRender()
       
-      // 滚轮事件结束后恢复高质量渲染
-      clearTimeout(this.wheelTimer)
+      // 设置计时器，在滚轮停止后退出交互模式
       this.wheelTimer = setTimeout(() => {
         this.interactionState.isInteracting = false
-        this.interactionState.renderQuality = 'high'
-        this.requestRender()
-      }, 300) // 300ms后恢复高质量
+        this.requestRender() // 请求高质量渲染
+      }, 150)
     },
     
     // 工具方法
@@ -1480,11 +1801,167 @@ export default {
       } catch (error) {
         console.error('解析训练日志失败:', error)
       }
+    },
+    
+    // ========== 向量计算工具方法 ==========
+    
+    // 向量加法
+    addVectors(v1, v2) {
+      return [v1[0] + v2[0], v1[1] + v2[1], v1[2] + v2[2]]
+    },
+    
+    // 向量减法
+    subtractVectors(v1, v2) {
+      return [v1[0] - v2[0], v1[1] - v2[1], v1[2] - v2[2]]
+    },
+    
+    // 向量缩放
+    scaleVector(v, scale) {
+      return [v[0] * scale, v[1] * scale, v[2] * scale]
+    },
+    
+    // 向量叉积
+    crossProduct(v1, v2) {
+      return [
+        v1[1] * v2[2] - v1[2] * v2[1],
+        v1[2] * v2[0] - v1[0] * v2[2],
+        v1[0] * v2[1] - v1[1] * v2[0]
+      ]
+    },
+    
+    // 向量点积
+    dotProduct(v1, v2) {
+      return v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]
+    },
+    
+    // 向量长度
+    vectorLength(v) {
+      return Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+    },
+    
+    // 向量归一化
+    normalizeVector(v) {
+      const length = this.vectorLength(v)
+      if (length === 0) return [0, 0, 0]
+      return [v[0] / length, v[1] / length, v[2] / length]
+    },
+    
+    // ========== 相机计算方法 - 参考camera_widget.py ==========
+    
+    // 获取前向向量 - 参考get_forward_vector
+    getForwardVector(lookatPosition = null, horizontalMean = null, verticalMean = null, radius = 0.01, upVector = null) {
+      const pos = lookatPosition || this.cameraParams.position
+      const hMean = horizontalMean || (this.cameraParams.pose.yaw + Math.PI / 2)
+      const vMean = verticalMean || (this.cameraParams.pose.pitch + Math.PI / 2)
+      const up = upVector || this.cameraParams.up_vector
+      
+      // 球坐标转换为笛卡尔坐标
+      const x = radius * Math.sin(vMean) * Math.cos(hMean)
+      const y = radius * Math.cos(vMean)
+      const z = radius * Math.sin(vMean) * Math.sin(hMean)
+      
+      return this.normalizeVector([x, y, z])
+    },
+    
+    // 获取相机位置 - 参考get_origin
+    getOrigin(yaw, pitch, radius, lookatPoint, upVector) {
+      // 球坐标转换
+      const x = radius * Math.sin(pitch) * Math.cos(yaw)
+      const y = radius * Math.cos(pitch)
+      const z = radius * Math.sin(pitch) * Math.sin(yaw)
+      
+      // 相对于lookat点的位置
+      return this.addVectors(lookatPoint, [x, y, z])
+    },
+    
+    // 切换控制模式
+    switchControlMode(modeIndex) {
+      if (modeIndex >= 0 && modeIndex < this.cameraParams.control_modes.length) {
+        this.cameraParams.current_control_mode = modeIndex
+        this.updateCameraFromPose()
+        this.requestRender()
+        console.log('相机控制模式切换为:', this.cameraParams.control_modes[modeIndex])
+      }
+    },
+    
+    // 重置相机到默认状态
+    resetCameraToDefault() {
+      this.cameraParams.pose.yaw = Math.PI
+      this.cameraParams.pose.pitch = 0
+      this.cameraParams.radius = 5
+      this.cameraParams.lookat_point = [0, 0, 0]
+      this.cameraParams.up_vector = [0, 1, 0]
+      this.cameraParams.position = [0, 0, 5]
+      
+      // 重置动量
+      this.mouseState.momentum.momentum_x = 0
+      this.mouseState.momentum.momentum_y = 0
+      
+      this.updateCameraFromPose()
+      this.requestRender()
+    },
+    
+    // 键盘事件处理
+    handleKeyDown(event) {
+      if (this.cameraParams.current_control_mode !== 1) return // 只在WASD模式下响应
+      
+      const speed = this.cameraParams.wasd_move_speed
+      const forward = this.getForwardVector()
+      const right = this.crossProduct(forward, this.cameraParams.up_vector)
+      const up = this.cameraParams.up_vector
+      
+      let movement = [0, 0, 0]
+      
+      switch(event.key.toLowerCase()) {
+        case 'w':
+          movement = this.scaleVector(forward, speed)
+          break
+        case 's':
+          movement = this.scaleVector(forward, -speed)
+          break
+        case 'a':
+          movement = this.scaleVector(right, -speed)
+          break
+        case 'd':
+          movement = this.scaleVector(right, speed)
+          break
+        case 'q':
+          movement = this.scaleVector(up, -speed)
+          break
+        case 'e':
+          movement = this.scaleVector(up, speed)
+          break
+        default:
+          return
+      }
+      
+      // 更新相机位置
+      this.cameraParams.position = this.addVectors(this.cameraParams.position, movement)
+      this.requestRender()
+      event.preventDefault()
     }
+  },
+  
+  mounted() {
+    // 添加键盘事件监听器
+    window.addEventListener('keydown', this.handleKeyDown)
+  },
+  
+  beforeUnmount() {
+    // 移除键盘事件监听器
+    window.removeEventListener('keydown', this.handleKeyDown)
   }
 }
+ // 添加节流渲染请求方法
+ 
 </script>
 
 <style scoped  src="../assets/styles/Visualization.css">
+
+</style>
+
+   
+
+<style scoped>
 
 </style>

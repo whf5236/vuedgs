@@ -11,7 +11,8 @@ import cv2  # 添加OpenCV用于图像压缩
 from gs.scene.cameras import CustomCam
 from base_renderer import Renderer
 
-
+host = "127.0.0.1"
+port = 6009
 
 class WebRenderer(Renderer):
 
@@ -25,7 +26,6 @@ class WebRenderer(Renderer):
             return self._websocket
 
         try:
-            # Set a timeout for the connection attempt
             self._websocket = await asyncio.wait_for(websockets.client.connect(self.uri), timeout=2.0)
             print(f"Successfully connected to WebSocket server at {self.uri}")
             return self._websocket

@@ -1,3 +1,4 @@
+/* 优化后的样式 - 合并重复定义 */
 .training-visualization {
   display: flex;
   height: 100vh;
@@ -41,12 +42,6 @@
 
 .connection-status.connected .status-indicator {
   background: #28a745;
-}
-
-@keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
 }
 
 .connect-btn, .disconnect-btn {
