@@ -424,7 +424,6 @@ def get_task_status(task_id):
 
     # 添加输出日志
     if 'output_logs' in training_tasks[task_id]:
-        # 只返回最新的100行日志，以避免响应过大
         task_info['output_logs'] = training_tasks[task_id]['output_logs'][-100:]
 
     # 如果任务已完成，添加结果信息
