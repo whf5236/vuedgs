@@ -8,6 +8,23 @@
     </div>
     
     <div class="widget-content">
+      <!-- 控制模式选择 -->
+      <div class="setting-group">
+        <label>控制模式</label>
+        <el-select 
+          v-model="currentControlMode" 
+          @change="switchControlMode"
+          placeholder="选择控制模式"
+        >
+          <el-option
+            v-for="(mode, index) in controlModes"
+            :key="index"
+            :label="mode"
+            :value="index"
+          />
+        </el-select>
+      </div>
+      
       <!-- 视野角度 -->
       <div class="setting-group">
         <label>视野角度 (FOV)</label>
@@ -178,7 +195,7 @@ export default {
       })
     }
   },
-  emits: ['update-camera', 'reset-camera'],
+  emits: ['update-camera', 'reset-camera', 'switch-control-mode'],
   data() {
     return {
       localParams: {
@@ -186,6 +203,8 @@ export default {
         position: [...this.cameraParams.position],
         rotation: [...this.cameraParams.rotation]
       },
+      controlModes: ['Orbit', 'WASD'],
+      currentControlMode: 0,
       controlMode: 'orbit',
       moveSpeed: 1.0,
       savedView: null
@@ -238,6 +257,9 @@ export default {
     updateMoveSpeed() {
       // 可以在这里添加移动速度更新的逻辑
       console.log('移动速度更新为:', this.moveSpeed)
+    },
+    switchControlMode() {
+      this.$emit('switch-control-mode', this.currentControlMode)
     },
     applyPreset(preset) {
       const presets = {

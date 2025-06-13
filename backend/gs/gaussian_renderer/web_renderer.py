@@ -5,9 +5,6 @@ import torch
 from threading import Thread
 import websockets
 import websockets.client
-import websockets.connection
-import websockets.streams
-import websockets.uri
 import websockets.exceptions  # 添加异常处理模块
 import cv2  # 添加OpenCV用于图像压缩
 
