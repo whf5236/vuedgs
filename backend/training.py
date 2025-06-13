@@ -8,16 +8,9 @@ import numpy as np
 from flask import Blueprint, request, jsonify, current_app
 import sys
 
-import base64
-import io
-from PIL import Image
-
 # 配置日志记录
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('training')
-
-# 注意：TrainingWebSocketServer相关代码已移除（8765端口未实际使用）
-
 
 # 创建蓝图
 training_bp = Blueprint('training', __name__)
@@ -28,28 +21,9 @@ training_tasks = {}
 
 # New wrapper function
 def run_training_script_wrapper(root_path, source_path, model_path, user_id, task_id, params=None):
-    """
-    Wrapper to set up Flask app context for the training thread.
-    """
-    logger.info(f"Training thread wrapper entered for task {task_id}.")
     _internal_run_training_script(root_path, source_path, model_path, user_id, task_id, params)
-    logger.info(f"Main training logic completed for task {task_id}.")
-
 
 def _internal_run_training_script(root_path, source_path, model_path, user_id, task_id, params=None):
-    """
-    运行训练脚本的函数 (internal logic, expects app context to be set)
-
-    参数:
-        root_path: 应用根目录
-        source_path: 源数据路径(COLMAP 处理后的数据）
-        model_path: 模型保存路径
-        user_id: 用户ID
-        task_id: 任务ID
-        params: 训练参数字典
-    """
-    # 注意：websocket_server全局变量引用已移除
-    
     # 首先创建任务记录，确保在异常处理中可以访问
     training_tasks[task_id] = {
         'status': 'initializing',
@@ -59,7 +33,6 @@ def _internal_run_training_script(root_path, source_path, model_path, user_id, t
         'source_path': source_path,
         'model_path': model_path,
         'start_time': time.time(),
-        'output_logs': []  # 初始化输出日志列表
     }
 
     try:
@@ -71,11 +44,11 @@ def _internal_run_training_script(root_path, source_path, model_path, user_id, t
         os.makedirs(model_path, exist_ok=True)
 
         # 更新任务状态为处理中
-        training_tasks[task_id]['status'] = 'processing'
-        training_tasks[task_id]['message'] = 'Starting training...'
+        training_tasks[task_id]['status'] = '处理中'
+        training_tasks[task_id]['message'] = '开始训练'
 
         # 构建命令
-        script_path = os.path.join(root_path, 'gs', 'train.py') # Use passed root_path
+        script_path = os.path.join(root_path, 'gs', 'train.py')
         command = [
             sys.executable,
             script_path,
@@ -88,22 +61,14 @@ def _internal_run_training_script(root_path, source_path, model_path, user_id, t
         websocket_port = 6009
         
         if params:
-            # 从params中提取WebSocket配置
-            if 'ip' in params:
-                websocket_host = params['ip']
-            if 'port' in params:
-                websocket_port = params['port']
-                
+    
             # 确保WebSocket参数被正确添加到命令行
             command.extend(['--ip', str(websocket_host)])
             command.extend(['--port', str(websocket_port)])
             
-            # 记录WebSocket配置
-            logger.info(f"配置SplatvizNetwork WebSocket服务器: {websocket_host}:{websocket_port}")
             
             # 添加其他参数
             for key, value in params.items():
-                # 跳过已经处理的WebSocket参数
                 if key in ['ip', 'port']:
                     continue
                     
@@ -129,15 +94,6 @@ def _internal_run_training_script(root_path, source_path, model_path, user_id, t
                         else:
                             command.append(f'--{key}')
                             command.append(str(value))
-
-        # 调试输出最终的命令
-        logger.info(f"最终执行命令: {' '.join(command)}")
-
-        logger.info(f"训练文件夹: {folder_name}")
-        logger.info(f"源路径: {source_path}")
-        logger.info(f"模型输出路径: {model_path}")
-        logger.info(f"执行命令: {' '.join(command)}")
-        logger.info(f"SplatvizNetwork WebSocket服务器: {websocket_host}:{websocket_port}")
 
         # 执行命令
         process = subprocess.Popen(
@@ -321,53 +277,64 @@ def _internal_run_training_script(root_path, source_path, model_path, user_id, t
         # 设置结束时间
         training_tasks[task_id]['end_time'] = time.time()
 
+def generate_model_path(root_path, user_id, source_folder):
+    """
+    生成模型输出路径：源文件夹名_model，如果存在则添加序号
+    
+    Args:
+        root_path: 应用根路径
+        user_id: 用户ID
+        source_folder: 源文件夹名称
+    
+    Returns:
+        str: 生成的模型路径
+    """
+    base_name = f"{source_folder}_model"
+    base_path = os.path.join(root_path, 'data', user_id, 'models', base_name)
+    
+    # 如果基础路径不存在，直接返回
+    if not os.path.exists(base_path):
+        return base_path
+        
+    # 如果存在，则添加序号
+    counter = 1
+    while True:
+        new_path = f"{base_path}_{counter}"
+        if not os.path.exists(new_path):
+            return new_path
+        counter += 1
+
 @training_bp.route('/start', methods=['POST'])
 def start_training():
-    """
-    启动训练的API端点
-    """
     data = request.json
-    logger.info(f"请求数据: {data}")
-
     if not data or 'source_path' not in data:
-        logger.error("缺少源路径")
-        return jsonify({'error': 'Source path is required'}), 400
+        return jsonify({'error': '需要源文件夹'}), 400
     
     # 从请求体中获取用户名
-    user_id = data.get('username', 'default_user')
-    logger.info(f"启动训练请求 - 用户: {user_id}")
-
+    user_id = data.get('username')
     source_path = data['source_path']
-    logger.info(f"源路径: {source_path}")
 
     # 检查源路径是否存在
     if not os.path.exists(source_path):
-        logger.error(f"源路径不存在: {source_path}")
-        return jsonify({'error': 'Source path does not exist'}), 404
+        return jsonify({'error': '源路径不存在'}), 404
 
     if not os.path.isdir(source_path):
-        logger.error(f"源路径不是文件夹: {source_path}")
-        return jsonify({'error': 'Source path is not a directory'}), 400
+        return jsonify({'error': '源路径不是文件夹'}), 400
 
-    # 创建模型输出路径
-    folder_name = os.path.basename(source_path)
-    model_path = os.path.join(current_app.root_path, 'data', user_id, 'models', folder_name)
-    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+    # 获取源文件夹名称并生成模型路径
+    source_folder = os.path.basename(source_path)
+    model_path = generate_model_path(current_app.root_path, user_id, source_folder)
+    
+    # 确保模型输出目录存在
+    os.makedirs(model_path, exist_ok=True)
 
     # 获取训练参数
     training_params = data.get('params', {})
-
-    # Get WebSocket host and port for SplatvizNetwork from the request,
-    # these will be passed to train.py and returned to the frontend.
     websocket_port = data.get('websocket_port', 6009)  # 从请求中获取端口，默认6009
     websocket_host = data.get('websocket_host', 'localhost')  # 从请求中获取主机，默认localhost
 
-    # Add/override 'ip' and 'port' in training_params to be passed to train.py
-    # train.py uses these for its SplatvizNetwork WebSocket server.
     training_params['ip'] = websocket_host
     training_params['port'] = websocket_port
-    logger.info(f"SplatvizNetwork is intended to be started by train.py on {websocket_host}:{websocket_port}. This info will be passed to train.py and frontend.")
-
     # 生成任务ID
     task_id = f"{user_id}_{folder_name}_{int(time.time())}"
     logger.info(f"生成任务ID: {task_id}")
@@ -381,8 +348,6 @@ def start_training():
     )
     thread.daemon = True
     thread.start()
-    logger.info(f"启动训练线程: {task_id}")
-
     return jsonify({
         'message': 'Training started',
         'task_id': task_id,
@@ -405,7 +370,7 @@ def get_task_status(task_id):
     获取训练任务状态的API端点
     """
     # 使用请求参数中的用户名
-    user_id = request.args.get('username', 'default_user')
+    user_id = request.args.get('username')
 
     if task_id not in training_tasks:
         return jsonify({'error': 'Task not found'}), 404
@@ -439,7 +404,6 @@ def get_task_status(task_id):
 
     return jsonify(task_info), 200
 
-# 注意：WebSocket相关API端点已移除（/websocket/status, /websocket/start, /websocket/stop）
 
 @training_bp.route('/cancel/<task_id>', methods=['POST'])
 def cancel_task(task_id):
@@ -511,7 +475,7 @@ def get_active_tasks():
     """
     获取用户的活动训练任务
     """
-    user_id = request.args.get('username', 'default_user')
+    user_id = request.args.get('username')
     
     # 获取用户的活动任务（只包含真正在处理中的任务）
     active_tasks = []
@@ -543,7 +507,7 @@ def cleanup_completed_tasks():
     """
     清理已完成的训练任务
     """
-    user_id = request.args.get('username', 'default_user')
+    user_id = request.args.get('username')
     
     # 清理已完成、失败或取消的任务
     tasks_to_remove = []
@@ -566,7 +530,7 @@ def get_results():
     获取用户的训练结果列表
     """
     # 使用请求参数中的用户名
-    user_id = request.args.get('username', 'default_user')
+    user_id = request.args.get('username')
 
     # 构建用户模型文件夹路径
     user_models_folder = os.path.join(current_app.root_path, 'data', user_id, 'models')

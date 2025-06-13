@@ -11,14 +11,14 @@
 
         <div v-if="loadingFolders" class="text-center py-3">
           <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
+            <span class="visually-hidden">加载中...</span>
           </div>
-          <p class="mt-2">Loading available folders...</p>
+          <p class="mt-2">加载可用文件夹...</p>
         </div>
 
         <div v-else-if="folders.length === 0" class="text-center py-3">
           <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
-          <p class="text-muted">No processed point cloud folders found</p>
+          <p class="text-muted">没有可用的文件夹</p>
           <p class="text-muted small">Process images in the Point Cloud Processing tab first</p>
         </div>
 
@@ -68,16 +68,16 @@
               min="1000"
               max="100000"
             >
-            <div class="parameter-description">Default: 30,000</div>
+            <div class="parameter-description">默认值: 30,000</div>
           </div>
 
           <div class="col-md-6">
             <div class="parameter-label">
-              Resolution
+              分辨率缩放
               <i class="fas fa-question-circle parameter-help" title="Specifies resolution of the loaded images before training"></i>
             </div>
             <select class="form-select" v-model="trainingParams.resolution">
-              <option value="-1">Auto (default)</option>
+              <option value="-1">自动 (默认值)</option>
               <option value="1">Original size</option>
               <option value="2">1/2 resolution</option>
               <option value="4">1/4 resolution</option>
@@ -100,7 +100,7 @@
           <div class="col-md-6">
             <div class="parameter-label">
               SH Degree
-              <i class="fas fa-question-circle parameter-help" title="Order of spherical harmonics to be used (no larger than 3)"></i>
+              <i class="fas fa-question-circle parameter-help" title="球鞋函数的阶数 (不超过 3)"></i>
             </div>
             <select class="form-select" v-model.number="trainingParams.sh_degree">
               <option value="0">0 - Lambertian</option>
@@ -114,12 +114,12 @@
         <div class="row parameter-row">
           <div class="col-md-6">
             <div class="parameter-label">
-              Data Device
+              数据加载设备
               <i class="fas fa-question-circle parameter-help" title="Specifies where to put the source image data"></i>
             </div>
             <select class="form-select" v-model="trainingParams.data_device">
-              <option value="cuda">CUDA (default, faster)</option>
-              <option value="cpu">CPU (for large datasets, reduces VRAM usage)</option>
+              <option value="cuda">CUDA (默认)</option>
+              <option value="cpu">CPU (减少显存的占用)</option>
             </select>
           </div>
 
@@ -137,12 +137,12 @@
 
       <!-- 学习率参数 -->
       <div class="parameter-group">
-        <h6 class="mb-3">Learning Rate Parameters</h6>
+        <h6 class="mb-3">学习率参数</h6>
 
         <div class="row parameter-row">
           <div class="col-md-6">
             <div class="parameter-label">
-              Position Learning Rate (Initial)
+              位置学习率参数 (初始值)
               <i class="fas fa-question-circle parameter-help" title="Initial 3D position learning rate"></i>
             </div>
             <div class="d-flex align-items-center">
@@ -156,12 +156,12 @@
               >
               <span class="range-value ms-2">{{ trainingParams.position_lr_init }}</span>
             </div>
-            <div class="parameter-description">Default: 0.00016</div>
+            <div class="parameter-description">默认值: 0.00016</div>
           </div>
 
           <div class="col-md-6">
             <div class="parameter-label">
-              Position Learning Rate (Final)
+              位置学习率参数 (最终值)
               <i class="fas fa-question-circle parameter-help" title="Final 3D position learning rate"></i>
             </div>
             <div class="d-flex align-items-center">
@@ -201,7 +201,7 @@
 
           <div class="col-md-6">
             <div class="parameter-label">
-              Opacity Learning Rate
+              不透明度学习率
               <i class="fas fa-question-circle parameter-help" title="Opacity learning rate"></i>
             </div>
             <div class="d-flex align-items-center">
@@ -215,7 +215,7 @@
               >
               <span class="range-value ms-2">{{ trainingParams.opacity_lr }}</span>
             </div>
-            <div class="parameter-description">Default: 0.05</div>
+            <div class="parameter-description">默认值: 0.05</div>
           </div>
         </div>
 
@@ -298,7 +298,7 @@
 
       <!-- 密度化参数 -->
       <div class="parameter-group">
-        <h6 class="mb-3">Densification Parameters</h6>
+        <h6 class="mb-3">密集化参数</h6>
 
         <div class="row parameter-row">
           <div class="col-md-6">
@@ -318,7 +318,7 @@
 
           <div class="col-md-6">
             <div class="parameter-label">
-              Densify Until Iteration
+              密集化停止迭代轮数
               <i class="fas fa-question-circle parameter-help" title="Iteration where densification stops"></i>
             </div>
             <input
@@ -328,7 +328,7 @@
               min="1000"
               max="30000"
             >
-            <div class="parameter-description">Default: 15,000</div>
+            <div class="parameter-description">默认值: 15,000</div>
           </div>
         </div>
 
@@ -602,7 +602,7 @@
 
       <div v-else-if="results.length === 0" class="text-center py-3">
         <i class="fas fa-history fa-3x text-muted mb-3"></i>
-        <p class="text-muted">No training history found</p>
+        <p class="text-muted">没有找到历史文件夹</p>
       </div>
 
       <div v-else class="table-responsive">
