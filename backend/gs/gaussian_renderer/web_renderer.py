@@ -6,7 +6,7 @@ from threading import Thread
 import websockets
 import websockets.client
 import websockets.exceptions  # 添加异常处理模块
-import cv2  # 添加OpenCV用于图像压缩
+import cv2
 
 from gs.scene.cameras import CustomCam
 from base_renderer import Renderer

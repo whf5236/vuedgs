@@ -318,13 +318,9 @@ def get_task_status(task_id):
     return jsonify(task_info), 200
 
 @point_cloud_bp.route('/folders', methods=['GET'])
-# 暂时移除 JWT 认证要求
 def get_folders():
-    """
-    获取用户可用于点云处理的文件夹列表
-    """
     # 使用请求参数中的用户名
-    user_id = request.args.get('username', 'default_user')
+    user_id = request.args.get('username')
 
     # 构建用户数据文件夹路径
     user_data_folder = os.path.join(current_app.root_path, 'data', user_id)
@@ -398,10 +394,6 @@ def cancel_task(task_id):
 
 @point_cloud_bp.route('/results', methods=['GET'])
 def get_point_cloud_results():
-    """
-    Scans for and returns a list of processed COLMAP folders for a given user.
-    This version has relaxed filtering to ensure all potential training folders are listed.
-    """
     username = request.args.get('username')
     if not username:
         return jsonify({'error': 'Username is required'}), 400

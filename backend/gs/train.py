@@ -143,8 +143,6 @@ if __name__ == "__main__":
     args = parser.parse_args(sys.argv[1:])
     args.save_iterations.append(args.iterations)
     
-    # Robust error handling with "black box" logging
-    # Ensure model_path exists for logging purposes
     if not args.model_path:
         if os.getenv('OAR_JOB_ID'):
             unique_str=os.getenv('OAR_JOB_ID')
@@ -155,9 +153,7 @@ if __name__ == "__main__":
     log_file_path = os.path.join(args.model_path, "train_script_crash.log")
 
     try:
-        print("Optimizing " + args.model_path)
-
-        # Initialize system state (RNG)
+      
         safe_state(args.quiet)
 
         training(lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from, args.ip, args.port)
