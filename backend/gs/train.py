@@ -46,7 +46,6 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     network = SplatvizNetworkWs()
     for iteration in range(first_iter, opt.iterations + 1):
         network.render_and_respond_async(pipe, gaussians, ema_loss_for_log, render, background, iteration, opt)
-        iter_start.record()
         gaussians.update_learning_rate(iteration)
         if iteration % 1000 == 0:
             gaussians.oneupSHdegree()
@@ -66,9 +65,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         loss.backward()
 
         with torch.no_grad():
-            # Progress bar
-            ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
-            
+            ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log        
             if iteration % 10 == 0:
                 progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}"})
                 progress_bar.update(10)
@@ -76,8 +73,6 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 progress_bar.close()       
                 print("\n[ITER {}] Saving Gaussians".format(iteration))
                 scene.save(iteration)
-
-            # Densification
             if iteration < opt.densify_until_iter:
                 # Keep track of max radii in image-space for pruning
                 gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
