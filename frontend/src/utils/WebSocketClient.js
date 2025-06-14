@@ -72,8 +72,8 @@ class WebSocketClient {
         
         this.ws.onmessage = (event) => {
           try {
-            const data = JSON.parse(event.data);
-            this.handleMessage(data);
+            // 确保传递的是 event.data
+            this.handleMessage(event.data);
           } catch (error) {
             console.error('解析WebSocket消息失败:', error);
           }
@@ -205,26 +205,52 @@ class WebSocketClient {
       return;
     }
     
+    // 新增：处理二进制数据
+    if (data instanceof Blob) {
+      if (this.messageHandlers.has('splat_image')) { // 假设二进制数据都属于'splat_image'类型
+          this.messageHandlers.get('splat_image')({ type: 'splat_image', data });
+      } else {
+          console.warn('收到未处理的二进制消息');
+      }
+      return;
+    }
+    
+    // 首先尝试解析JSON
+    let jsonData;
+    try {
+        jsonData = JSON.parse(data);
+    } catch (error) {
+        console.error('解析WebSocket消息失败:', error, '原始数据:', data);
+        // 如果解析失败，不再继续执行
+        return;
+    }
+
+    
     // 处理请求响应
-    if (data.request_id && this.pendingRequests.has(data.request_id)) {
-      const request = this.pendingRequests.get(data.request_id);
-      this.pendingRequests.delete(data.request_id);
+    if (jsonData.request_id && this.pendingRequests.has(jsonData.request_id)) {
+      const request = this.pendingRequests.get(jsonData.request_id);
+      this.pendingRequests.delete(jsonData.request_id);
       clearTimeout(request.timeoutId);
       
-      if (data.status === 'success') {
-        request.resolve(data);
+      if (jsonData.status === 'success') {
+        request.resolve(jsonData);
       } else {
-        request.reject(new Error(data.message || '请求失败'));
+        request.reject(new Error(jsonData.message || '请求失败'));
       }
       return;
     }
     
     // 处理其他消息类型
-    if (this.messageHandlers.has(data.type)) {
-      const handler = this.messageHandlers.get(data.type);
-      handler(data);
+    if (this.messageHandlers.has(jsonData.type)) {
+      const handler = this.messageHandlers.get(jsonData.type);
+      handler(jsonData);
     } else {
-      console.log('收到未处理的WebSocket消息:', data);
+      // 兼容旧的/没有type的消息，我们假定它们是 splat_stats
+      if (this.messageHandlers.has('splat_stats')) {
+        this.messageHandlers.get('splat_stats')(jsonData);
+      } else {
+        console.log('收到未处理的WebSocket消息:', jsonData);
+      }
     }
   }
   

@@ -10,18 +10,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def extract_frames_from_video(video_path, output_folder, frame_rate=1, extract_all=False):
-    """
-    从视频中提取帧并保存到输出文件夹
-
-    参数:
-    - video_path: 视频文件路径
-    - output_folder: 输出文件夹路径
-    - frame_rate: 每秒提取的帧数
-    - extract_all: 是否提取所有帧
-
-    返回:
-    - 提取的帧数
-    """
     try:
         # 确保输出文件夹存在
         os.makedirs(output_folder, exist_ok=True)

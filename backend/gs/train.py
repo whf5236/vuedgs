@@ -102,8 +102,27 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 print(f"Iteration {iteration} took {iter_time:.2f} ms")
     
 
+def prepare_output_and_logger(args):    
+    if not args.model_path:
+        if os.getenv('OAR_JOB_ID'):
+            unique_str=os.getenv('OAR_JOB_ID')
+        else:
+            unique_str = str(uuid.uuid4())
+        if unique_str:
+            args.model_path = os.path.join("./output/", unique_str[0:10])
+        else:
+            args.model_path = os.path.join("./output/", "default")
+        
+    # Set up output folder
+    print("Output folder: {}".format(args.model_path))
+    os.makedirs(args.model_path, exist_ok = True)
+    with open(os.path.join(args.model_path, "cfg_args"), 'w') as cfg_log_f:
+        cfg_log_f.write(str(Namespace(**vars(args))))
 
-if __name__ == "__main__":
+    return args
+
+
+def parse_arguments():
     # Set up command line argument parser
     parser = ArgumentParser(description="Training script parameters")
     lp = ModelParams(parser)
@@ -119,16 +138,24 @@ if __name__ == "__main__":
     parser.add_argument('--disable_viewer', action='store_true', default=False)
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--start_checkpoint", type=str, default = None)
+    
     args = parser.parse_args(sys.argv[1:])
     args.save_iterations.append(args.iterations)
     
-    os.makedirs(args.model_path, exist_ok = True)
-    with open(os.path.join(args.model_path, "cfg_args"), 'w') as cfg_log_f:
-        cfg_log_f.write(str(Namespace(**vars(args))))
+    # 处理输出路径
+    args = prepare_output_and_logger(args)
+    
+    return args, lp, op, pp
+
+
+if __name__ == "__main__":
+    # 解析参数
+    args, lp, op, pp = parse_arguments()
+    
+    # 设置日志文件路径
     log_file_path = os.path.join(args.model_path, "train_script_crash.log")
 
     try:
-      
         safe_state(args.quiet)
 
         training(lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from, args.ip, args.port)
