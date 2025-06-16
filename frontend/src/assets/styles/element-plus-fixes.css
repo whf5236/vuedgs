@@ -17,4 +17,102 @@
 .el-select__popper,
 .el-dropdown__popper {
   z-index: 9999 !important;
+}
+
+/* Glassmorphism for el-descriptions */
+.glass-descriptions {
+  background: rgba(30, 35, 50, 0.5) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  backdrop-filter: blur(10px) !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+  padding: 1rem !important;
+  overflow: hidden !important;
+
+  /* --- KEY FIX: Forcefully override Element Plus CSS variables --- */
+  --el-fill-color-lighter: rgba(255, 255, 255, 0.05) !important;
+  --el-descriptions-table-border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  --el-bg-color: transparent !important;
+}
+
+.glass-descriptions .el-descriptions__header {
+  margin-bottom: 1rem;
+}
+
+.glass-descriptions .el-descriptions__title {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.glass-descriptions .el-descriptions__body,
+.glass-descriptions .el-descriptions__table,
+.glass-descriptions .el-descriptions-item__cell {
+  background: transparent !important;
+}
+
+.glass-descriptions .el-descriptions-item__label {
+  color: #c0c4cc;
+  font-weight: 500;
+}
+
+.glass-descriptions .el-descriptions-item__content {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+/* --- Global overrides for other components inside file-preview --- */
+.file-preview .el-button {
+  background: rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  transition: all 0.3s ease;
+}
+
+.file-preview .el-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.file-preview .el-button--primary {
+  background: rgba(78, 115, 223, 0.5);
+  border-color: rgba(78, 115, 223, 0.7);
+}
+
+.file-preview .el-button--primary:hover {
+  background: rgba(78, 115, 223, 0.7);
+  border-color: rgba(78, 115, 223, 0.9);
+}
+
+.file-preview .el-button--success {
+  background: rgba(103, 194, 58, 0.5);
+  border-color: rgba(103, 194, 58, 0.7);
+}
+
+.file-preview .el-button--success:hover {
+  background: rgba(103, 194, 58, 0.7);
+  border-color: rgba(103, 194, 58, 0.9);
+}
+
+.file-preview .el-slider__runway {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.file-preview .el-slider__bar {
+  background-color: rgba(78, 115, 223, 0.8);
+}
+
+.file-preview .el-slider__button {
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid rgba(78, 115, 223, 0.8);
+}
+
+.file-preview .el-result__title {
+  color: #fff;
+}
+
+.file-preview .el-result__subtitle {
+  color: rgba(255, 255, 255, 0.8);
 } 

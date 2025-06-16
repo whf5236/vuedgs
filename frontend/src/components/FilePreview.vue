@@ -1,10 +1,10 @@
 <template>
-  <div class="file-preview glass-card">
-    <div class="card-header">
+  <el-card class="file-preview">
+    <template #header>
       <span class="header-title">
         <el-icon><View /></el-icon> 文件预览
       </span>
-    </div>
+    </template>
 
     <div v-if="loading" class="loading-container">
       <el-skeleton animated :rows="6" />
@@ -143,11 +143,11 @@
       border
       class="file-info glass-descriptions"
     >
-      <el-descriptions-item label="Filename">{{ selectedFile.filename }}</el-descriptions-item>
-      <el-descriptions-item label="Type">{{ selectedFile.type.toUpperCase() }}</el-descriptions-item>
-      <el-descriptions-item label="Size">{{ formatFileSize(selectedFile.size) }}</el-descriptions-item>
+      <el-descriptions-item label="文件名称">{{ selectedFile.filename }}</el-descriptions-item>
+      <el-descriptions-item label="文件类型">{{ selectedFile.type.toUpperCase() }}</el-descriptions-item>
+      <el-descriptions-item label="文件大小">{{ formatFileSize(selectedFile.size) }}</el-descriptions-item>
     </el-descriptions>
-  </div>
+  </el-card>
 </template>
 
 <script setup>
@@ -471,134 +471,4 @@ onBeforeUnmount(() => {
 });
 </script>
 
-<style scoped>
-.glass-card {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(5px);
-  border-radius: 15px;
-  padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #fff;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.card-header {
-  margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  flex-shrink: 0;
-}
-
-.header-title {
-  font-size: 1.2rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-}
-
-.header-title .el-icon {
-  margin-right: 8px;
-}
-
-.loading-container, .empty-preview, .error-preview, .preview-container {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  min-height: 250px; /* Ensure a minimum height */
-}
-
-:deep(.el-empty__description) {
-  color: #e0e0e0;
-}
-:deep(.empty-icon) {
-  font-size: 4rem;
-  color: rgba(255, 255, 255, 0.4);
-}
-
-.preview-container {
-  width: 100%;
-  height: 100%;
-}
-
-.image-preview {
-  width: 100%;
-  height: 100%;
-  overflow: auto; /* Changed from hidden to auto for scrollbars if needed */
-  cursor: grab;
-  text-align: center;
-}
-.image-preview:active {
-  cursor: grabbing;
-}
-.preview-image {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
-
-.video-preview {
-  width: 100%;
-}
-.preview-video {
-  width: 100%;
-  max-height: 300px;
-  border-radius: 8px;
-}
-
-.zoom-controls-container {
-  margin-top: 15px;
-  flex-shrink: 0;
-}
-.zoom-slider-container {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(0, 0, 0, 0.2);
-  padding: 5px 10px;
-  border-radius: 20px;
-}
-:deep(.el-slider) {
-  --el-slider-main-bg-color: #409eff;
-  --el-slider-runway-bg-color: rgba(255, 255, 255, 0.2);
-}
-:deep(.el-tag) {
-  background-color: rgba(0, 0, 0, 0.3);
-  border: none;
-  color: #fff;
-}
-
-.image-navigation {
-  display: flex;
-  justify-content: space-between;
-  position: absolute;
-  top: 50%;
-  left: 20px;
-  right: 20px;
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-.image-navigation .el-button {
-  pointer-events: all;
-}
-
-/* Glass descriptions */
-.glass-descriptions {
-  margin-top: 15px;
-  flex-shrink: 0;
-  background: rgba(0, 0, 0, 0.2) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  border-radius: 8px !important;
-}
-
-:deep(.glass-descriptions .el-descriptions__label),
-:deep(.glass-descriptions .el-descriptions__content) {
-  background: transparent !important;
-  color: #fff !important;
-  border-color: rgba(255, 255, 255, 0.2) !important;
-}
-
-</style>
+<style scoped src="../assets/styles/filePreview.css"></style>

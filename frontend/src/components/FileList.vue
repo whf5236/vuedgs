@@ -1,7 +1,7 @@
 <template>
   <div class="file-list glass-card">
     <div class="card-header">
-      <div class="header-title">
+      <div class="header-title glass-title">
         <el-icon><Folder /></el-icon> 已经上传的数据
         <el-tag v-if="$store.getters.user" size="small" type="info" class="username-tag">
           {{ $store.getters.user.username }}
@@ -42,17 +42,6 @@
       </el-empty>
 
       <div v-else>
-        <!-- Filter Options -->
-        <div class="folder-options">
-          <el-select v-model="sortOption" placeholder="Sort by" size="small">
-            <el-option label="Newest first" value="date-desc" />
-            <el-option label="Oldest first" value="date-asc" />
-            <el-option label="Name (A-Z)" value="name-asc" />
-            <el-option label="Name (Z-A)" value="name-desc" />
-          </el-select>
-          <el-tag type="info">{{ displayedItems.length }} item(s)</el-tag>
-        </div>
-
         <!-- Items Grid -->
         <div class="folder-grid">
           <div
@@ -174,8 +163,6 @@ export default {
       loading: true,
       error: null,
       selectedFolder: null,
-      folderSortOption: 'date-desc',
-      sortOption: 'date-desc',
       Refresh: markRaw(Refresh),
       Histogram: markRaw(Histogram),
       Delete: markRaw(Delete)
@@ -186,42 +173,14 @@ export default {
       const folders = (this.folders || []).map(f => ({ ...f, item_type: 'folder' }));
       // 根据用户要求，不再显示根目录下的独立文件
       // const rootFiles = (this.files || []).map(f => ({ ...f, item_type: 'file' }));
-      const combined = [...folders];
-
-      return combined.sort((a, b) => {
-        switch (this.sortOption) {
-          case 'date-desc':
-            return b.created_time - a.created_time;
-          case 'date-asc':
-            return a.created_time - b.created_time;
-          case 'name-asc':
-            return a.name.localeCompare(b.name);
-          case 'name-desc':
-            return b.name.localeCompare(a.name);
-          default:
-            return 0;
-        }
-      });
+      
+      // 默认按照最新创建时间排序
+      return [...folders].sort((a, b) => b.created_time - a.created_time);
     },
     sortedFolders() {
       if (!this.folders.length) return [];
-
-      const sortedFolders = [...this.folders];
-
-      switch (this.folderSortOption) {
-        case 'date-desc':
-          return sortedFolders.sort((a, b) => b.created_time - a.created_time);
-        case 'date-asc':
-          return sortedFolders.sort((a, b) => a.created_time - b.created_time);
-        case 'name-asc':
-          return sortedFolders.sort((a, b) => a.name.localeCompare(b.name));
-        case 'name-desc':
-          return sortedFolders.sort((a, b) => b.name.localeCompare(a.name));
-        case 'images-desc':
-          return sortedFolders.sort((a, b) => b.image_count - a.image_count);
-        default:
-          return sortedFolders;
-      }
+      // 默认按照最新创建时间排序
+      return [...this.folders].sort((a, b) => b.created_time - a.created_time);
     }
   },
   emits: ['file-selected', 'preview-file', 'folder-selected'],
@@ -507,123 +466,5 @@ export default {
 }
 </script>
 
-<style scoped>
-.glass-card {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(5px);
-  border-radius: 15px;
-  padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #fff;
-  height: 100%;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.header-title {
-  font-size: 1.2rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-}
-.header-title .el-icon {
-  margin-right: 8px;
-}
-.username-tag {
-  margin-left: 10px;
-  background-color: rgba(0,0,0,0.2);
-  border-color: rgba(255,255,255,0.2);
-  color: #eee;
-}
-
-.glass-button {
-  background-color: rgba(78, 115, 223, 0.5) !important;
-  border-color: rgba(78, 115, 223, 0.8) !important;
-  color: #fff !important;
-}
-.glass-button:hover {
-  background-color: rgba(78, 115, 223, 0.7) !important;
-  border-color: #4e73df !important;
-}
-
-.folder-options {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-}
-:deep(.el-select .el-input__wrapper) {
-  background-color: rgba(0,0,0,0.2) !important;
-  box-shadow: none !important;
-  border-radius: 6px;
-}
-:deep(.el-select .el-input__inner) {
-  color: #fff;
-}
-
-.folder-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 15px;
-}
-
-.glass-card-inner {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
-  padding: 15px;
-  transition: all 0.3s ease;
-  cursor: pointer;
-}
-.glass-card-inner:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-3px);
-}
-.folder-selected {
-  background: rgba(78, 115, 223, 0.3);
-  border-color: rgba(78, 115, 223, 0.7);
-  box-shadow: 0 0 15px rgba(78, 115, 223, 0.5);
-}
-
-.folder-content {
-  display: flex;
-  align-items: center;
-}
-.folder-icon {
-  margin-right: 15px;
-}
-.folder-info {
-  flex-grow: 1;
-  overflow: hidden;
-}
-.folder-name {
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.folder-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 5px;
-}
-.folder-meta :deep(.el-tag) {
-  background-color: rgba(0,0,0,0.2);
-  border-color: rgba(255,255,255,0.2);
-  color: #eee;
-}
-.folder-date {
-  font-size: 0.8em;
-  color: #ccc;
-  margin-left: auto;
-}
+<style scoped src="../assets/styles/filelist.css">
 </style>

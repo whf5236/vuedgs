@@ -1,131 +1,125 @@
 .dashboard {
-    width: 100%;
-    min-height: 100vh;
-    background-color: #f5f7fa;
-  }
-  
-  /* Header styles */
-  .dashboard-header {
-    background: linear-gradient(to right, #2c3e50, #3a4a5d);
-    color: white;
-    padding: 0;
-    height: 60px;
-    line-height: 60px;
-    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-  }
-  
-  .header-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    height: 100%;
-    padding: 0 20px;
-  }
-  
-  .logo {
-    display: flex;
-    align-items: center;
-    font-size: 1.2rem;
-    font-weight: 600;
-  }
-  
-  .logo i {
-    margin-right: 10px;
-    font-size: 1.5rem;
-  }
-  
-  .user-info {
-    display: flex;
-    align-items: center;
-  }
-  
-  .user-avatar {
-    cursor: pointer;
-    background-color: #409eff;
-    color: white;
-    font-weight: bold;
-  }
-  
-  /* Main content styles */
-  .dashboard-main {
-    padding: 20px;
-    min-height: calc(100vh - 120px);
-  }
-  
-  .dashboard-card {
-    margin-bottom: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-  }
-  
-  /* Tab styles */
-  .dashboard-tabs {
-    width: 100%;
-  }
-  
-  .tab-label {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-  }
-  
-  .tab-label i {
-    font-size: 1.2rem;
-  }
-  
-  .tab-content {
-    padding: 20px 0;
-  }
-  
-  /* File list section */
-  .file-list-section {
-    margin-top: 20px;
-    margin-bottom: 40px;
-    width: 100%;
-  }
-  
-  /* Empty state */
-  .empty-icon {
-    font-size: 5rem;
-    color: #909399;
-  }
-  
-  .text-muted {
-    color: #909399;
-    font-size: 0.9rem;
-  }
-  
-  /* Footer styles */
-  .dashboard-footer {
-    background-color: #f5f7fa;
-    color: #606266;
-    text-align: center;
-    padding: 20px 0;
-    font-size: 0.9rem;
-    border-top: 1px solid #ebeef5;
-    height: 60px;
-  }
-  
-  /* Responsive adjustments */
-  @media (max-width: 768px) {
-    .dashboard-header {
-      height: auto;
-      line-height: normal;
-      padding: 10px 0;
-    }
-  
-    .header-content {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 10px;
-    }
-  
-    .logo {
-      margin-bottom: 10px;
-    }
-  
-    .user-info {
-      align-self: flex-end;
-    }
-  }
+  color: #fff;
+}
+
+.dashboard-main {
+  padding: 0;
+}
+
+.dashboard-container {
+  background: rgba(30, 41, 59, 0.5); /* Semi-transparent dark background */
+  backdrop-filter: blur(10px); /* Frosted glass effect */
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  min-height: calc(100vh - 120px);
+}
+
+.tab-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  font-size: 1rem;
+  color: #e2e8f0; /* Lighter text for tabs */
+}
+
+.tab-content {
+  background: rgba(15, 23, 42, 0.6); /* Slightly darker for content */
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: -16px; /* Overlap with tabs */
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.file-list-section {
+  margin-top: 20px;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  overflow: hidden; /* 确保子元素的圆角也能显示 */
+}
+
+/* Element Plus overrides for a cohesive look */
+:deep(.el-tabs__header) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  margin-bottom: 20px;
+}
+
+:deep(.el-tabs__nav) {
+  border: none !important;
+}
+
+:deep(.el-tabs__item) {
+  border: none !important;
+  border-radius: 8px 8px 0 0;
+  background-color: transparent !important;
+  transition: all 0.3s ease;
+  margin-right: 4px;
+}
+
+:deep(.el-tabs__item.is-active) {
+  background-color: rgba(15, 23, 42, 0.6) !important;
+  color: #fff !important;
+  border-bottom: 2px solid #3b82f6 !important; /* Active tab indicator */
+}
+
+:deep(.el-tabs__item:hover) {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #fff !important;
+}
+
+:deep(.el-card),
+:deep(.el-table) {
+  background-color: transparent !important;
+  color: #e2e8f0 !important;
+  border: none !important;
+}
+
+:deep(.el-card__header),
+:deep(.el-table__header-wrapper th) {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #fff !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+:deep(.el-table__row) {
+  background-color: transparent !important;
+}
+
+:deep(.el-table__row:hover) {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
+:deep(.el-button) {
+  --el-button-text-color: #e2e8f0;
+  --el-button-bg-color: rgba(59, 130, 246, 0.5);
+  --el-button-border-color: rgba(59, 130, 246, 0.7);
+}
+
+:deep(.el-button:hover) {
+  --el-button-hover-text-color: #fff;
+  --el-button-hover-bg-color: rgba(59, 130, 246, 0.7);
+  --el-button-hover-border-color: #3b82f6;
+}
+
+:deep(.folder-item:hover) {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Empty State Styles */
+:deep(.el-empty__image svg) {
+  color: #718096 !important;
+}
+
+:deep(.el-empty__description p) {
+  color: #cbd5e1 !important;
+}
+
+:deep(.el-empty__bottom) {
+  color: #a0aec0 !important;
+}

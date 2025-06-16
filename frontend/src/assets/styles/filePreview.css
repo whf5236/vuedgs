@@ -1,24 +1,32 @@
 .file-preview {
   height: 100%;
   width: 100%;
-  /* 移除滚动条，使用页面的主滚动条 */
 }
 
 .preview-card {
-  height: auto; /* 自动高度 */
-  min-height: auto; /* 移除最小高度限制 */
+  height: auto;
+  min-height: auto;
+  background: rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .header-title {
-  font-size: 18px;
+  font-size: 1.2rem;
   font-weight: 600;
-  color: #409EFF;
+  color: #fff;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -29,17 +37,17 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  height: 500px; /* 调整高度与预览容器一致 */
+  height: 500px;
 }
 
 .loading-text {
   margin-top: 20px;
-  color: #409EFF;
+  color: #fff;
   font-weight: 500;
 }
 
 .empty-preview, .error-preview {
-  height: 500px; /* 调整高度与预览容器一致 */
+  height: 500px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -47,16 +55,17 @@
 
 .empty-icon {
   font-size: 60px;
-  color: #909399;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .preview-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 500px; /* 调整高度 */
-  background-color: #f5f7fa;
-  border-radius: 4px;
+  height: 500px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   overflow: hidden;
   margin-bottom: 20px;
 }
@@ -102,7 +111,7 @@
 
 .file-type-icon {
   font-size: 48px;
-  color: #409EFF;
+  color: #fff;
 }
 
 .image-navigation {
@@ -122,9 +131,12 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background-color: #f5f7fa;
+  background: rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
   padding: 10px 20px;
   border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
@@ -135,8 +147,79 @@
 .zoom-value {
   min-width: 60px;
   text-align: center;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .file-info {
   margin-top: 20px;
 }
+
+/* 增强文件信息区域的毛玻璃效果 */
+.file-preview .file-info.glass-descriptions {
+  background: rgba(30, 35, 50, 0.5) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  backdrop-filter: blur(10px) !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+.file-preview .file-info.glass-descriptions .el-descriptions__cell {
+  background-color: transparent !important;
+}
+
+.file-preview .file-info.glass-descriptions .el-descriptions-item__label {
+  background-color: rgba(20, 25, 40, 0.75) !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.7) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+.file-preview .file-info.glass-descriptions .el-descriptions-item__content {
+  background-color: rgba(30, 35, 50, 0.6) !important;
+  color: #f0f0ff !important;
+  font-weight: 600 !important;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.7) !important;
+  font-size: 1.05em !important;
+}
+
+/* 确保描述列表内部的所有元素都是透明的 */
+.file-preview .file-info.glass-descriptions .el-descriptions__body {
+  background-color: transparent !important;
+}
+
+.file-preview .file-info.glass-descriptions .el-descriptions__table {
+  background-color: transparent !important;
+}
+
+.file-preview .file-info.glass-descriptions .el-descriptions__header {
+  background-color: transparent !important;
+}
+
+.file-preview .file-info.glass-descriptions table,
+.file-preview .file-info.glass-descriptions tbody,
+.file-preview .file-info.glass-descriptions tr,
+.file-preview .file-info.glass-descriptions th,
+.file-preview .file-info.glass-descriptions td {
+  background-color: transparent !important;
+}
+
+/* 覆盖 Element Plus 内部使用的 CSS 变量 */
+.file-preview .file-info.glass-descriptions {
+  --el-bg-color: transparent !important;
+  --el-bg-color-page: transparent !important;
+  --el-bg-color-overlay: transparent !important;
+  --el-fill-color: transparent !important;
+  --el-fill-color-light: transparent !important;
+  --el-fill-color-lighter: rgba(255, 255, 255, 0.05) !important;
+  --el-fill-color-extra-light: transparent !important;
+  --el-fill-color-blank: transparent !important;
+  --el-border-color: rgba(255, 255, 255, 0.15) !important;
+  --el-border-color-light: rgba(255, 255, 255, 0.1) !important;
+  --el-border-color-lighter: rgba(255, 255, 255, 0.08) !important;
+  --el-border-color-extra-light: rgba(255, 255, 255, 0.05) !important;
+  --el-descriptions-table-border: 1px solid rgba(255, 255, 255, 0.15) !important;
+} 

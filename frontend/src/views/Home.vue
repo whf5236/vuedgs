@@ -64,30 +64,37 @@ export default {
 <style scoped>
 .home-container {
   max-width: 1200px;
-  margin: 0 auto;
+  margin: 2rem auto;
   padding: 20px;
+  color: #ffffff;
 }
 
 .hero-section {
   text-align: center;
-  padding: 60px 20px;
-  margin-bottom: 40px;
-  background: linear-gradient(160deg, #f6f9fc 0%, #ecf1f7 100%);
-  border-radius: 10px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  padding: 60px 40px;
+  margin-bottom: 60px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
 }
 
 h1 {
-  font-size: 2.5rem;
-  color: #333;
+  font-size: 2.8rem;
+  color: #ffffff;
   margin-bottom: 20px;
+  font-weight: 700;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
 }
 
 .description {
   font-size: 1.2rem;
-  color: #555;
+  color: #e0e0e0;
   max-width: 700px;
   margin: 0 auto 30px;
+  line-height: 1.6;
 }
 
 .action-buttons {
@@ -130,22 +137,26 @@ h1 {
 .features-section {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 20px;
+  gap: 30px;
   margin-top: 60px;
 }
 
 .feature-card {
-  background-color: white;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   padding: 30px;
-  border-radius: 8px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
   text-align: center;
 }
 
 .feature-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+  transform: translateY(-8px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .feature-icon {
@@ -156,11 +167,11 @@ h1 {
 .feature-card h3 {
   font-size: 1.3rem;
   margin-bottom: 15px;
-  color: #333;
+  color: #ffffff;
 }
 
 .feature-card p {
-  color: #666;
+  color: #e0e0e0;
   line-height: 1.6;
 }
 

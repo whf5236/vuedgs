@@ -16,6 +16,8 @@ import { loadFull } from "tsparticles";
 import AppLayout from './layouts/AppLayout.vue';
 import AuthLayout from './layouts/AuthLayout.vue';
 
+let particlesAreInitialized = false;
+
 export default {
   name: 'App',
   components: {
@@ -107,8 +109,12 @@ export default {
   },
   methods: {
     async particlesInit(engine) {
+      if (particlesAreInitialized) {
+        return;
+      }
       try {
         await loadFull(engine);
+        particlesAreInitialized = true;
       } catch (error) {
         console.error('Failed to initialize particles:', error);
       }

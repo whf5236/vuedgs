@@ -1,10 +1,10 @@
 <template>
-  <div class="file-uploader glass-card">
-    <div class="card-header">
+  <el-card class="file-uploader">
+    <template #header>
       <span class="header-title">
         <el-icon><Upload /></el-icon> 上传文件
       </span>
-    </div>
+    </template>
 
     <el-alert
       v-if="error"
@@ -78,16 +78,12 @@
 
             <el-alert
               v-if="!isVideoFile && singleFile"
-              title="Please select a video file. Only video formats are supported in this tab."
+              title="请选择一个视频文件。此标签页仅支持视频格式。"
               type="warning"
               show-icon
               :closable="false"
               style="margin-top: 10px;"
             />
-
-            <div class="upload-tip">
-              <el-text type="info">Supported video formats: MP4, AVI, MOV</el-text>
-            </div>
           </el-form-item>
 
           <el-form-item label="Custom folder name (optional)">
@@ -101,7 +97,7 @@
               </template>
             </el-input>
             <el-text type="info" class="form-tip">
-              If left empty, a folder will be created with the format: <strong>YYYY-MM-DD_HH-MM-SS_video</strong>
+              如果留空，文件夹将使用以下格式创建：<strong>YYYY-MM-DD_HH-MM-SS_video</strong>
             </el-text>
           </el-form-item>
 
@@ -119,14 +115,14 @@
               :format-tooltip="value => `${value} fps`"
             />
             <el-text type="info" class="form-tip">
-              Higher frame rates capture more detail but create more files.
+              更高的帧率可以捕捉更多细节，但会创建更多文件。
             </el-text>
           </el-form-item>
 
           <el-form-item>
             <el-checkbox v-model="extractAllFrames" label="Extract all frames (ignores frame rate setting)" />
             <el-text type="warning" class="form-tip" v-if="extractAllFrames">
-              Warning: This may create a large number of files for longer videos.
+              警告: 这可能会为更长的视频创建大量文件。
             </el-text>
           </el-form-item>
 
@@ -157,7 +153,7 @@
       <!-- Multiple Files Upload (Images Only) -->
       <div v-if="activeTab === 'multiple'" class="upload-form-container">
         <el-form label-position="top">
-          <el-form-item label="Select multiple images to upload">
+          <el-form-item label="选择多张图片进行上传">
             <el-upload
               class="upload-demo"
               drag
@@ -170,10 +166,10 @@
               ref="multipleFilesUpload"
             >
               <el-icon class="el-icon--upload"><picture /></el-icon>
-              <div class="el-upload__text">Drop images here or <em>click to upload</em></div>
+              <div class="el-upload__text">拖拽图片到这里或<em>点击上传</em></div>
               <template #tip>
                 <div class="el-upload__tip">
-                  <el-text type="info">Hold Ctrl (or Cmd) to select multiple files</el-text>
+                  <el-text type="info">按住 Ctrl (或 Cmd) 键选择多个文件</el-text>
                 </div>
               </template>
             </el-upload>
@@ -186,16 +182,12 @@
               :closable="false"
               style="margin-top: 10px;"
             />
-
-            <div class="upload-tip">
-              <el-text type="info">Supported image formats: PNG, JPG, JPEG, GIF</el-text>
-            </div>
           </el-form-item>
 
-          <el-form-item label="Custom folder name (optional)">
+          <el-form-item label="自定义文件夹名称 (可选)">
             <el-input
               v-model="customImagesFolderName"
-              placeholder="Enter a custom folder name"
+              placeholder="输入自定义文件夹名称"
               clearable
             >
               <template #prefix>
@@ -203,7 +195,7 @@
               </template>
             </el-input>
             <el-text type="info" class="form-tip">
-              If left empty, a folder will be created with the format: <strong>YYYY-MM-DD_HH-MM-SS_images</strong>
+              如果留空，文件夹将使用以下格式创建：<strong>YYYY-MM-DD_HH-MM-SS_images</strong>
             </el-text>
           </el-form-item>
 
@@ -215,7 +207,7 @@
               :disabled="!validImageFiles.length"
               size="large"
             >
-              {{ uploading ? 'Uploading...' : 'Upload Images' }}
+              {{ uploading ? '上传中...' : '上传图片' }}
             </el-button>
           </el-form-item>
         </el-form>
@@ -257,10 +249,10 @@
               :file-list="folderFiles"
               ref="folderUpload"
             >
-              <el-button type="primary">Select Folder</el-button>
+              <el-button type="primary">选择文件夹</el-button>
               <template #tip>
                 <div class="el-upload__tip">
-                  <el-text type="info">Please select a folder to upload</el-text>
+                  <el-text type="info">请选择要上传的文件夹</el-text>
                 </div>
               </template>
             </el-upload>
@@ -272,10 +264,10 @@
                 :closable="false"
               >
                 <template #title>
-                  Due to browser limitations, you need to select all files in a folder.
+                  由于浏览器限制，您需要选择文件夹中的所有文件。
                 </template>
                 <template #default>
-                  <p>To upload a folder structure, please select all files within the folder you want to upload.</p>
+                  <p>要上传文件夹结构，请选择要上传的文件夹中的所有文件。</p>
                 </template>
               </el-alert>
             </div>
@@ -292,7 +284,7 @@
               </template>
             </el-input>
             <el-text type="info" class="form-tip">
-              If left empty, a folder will be created with the format: <strong>YYYY-MM-DD_HH-MM-SS_folder</strong>
+              如果留空，文件夹将使用以下格式创建：<strong>YYYY-MM-DD_HH-MM-SS_folder</strong>
             </el-text>
           </el-form-item>
 
@@ -362,7 +354,7 @@
         />
       </div>
     </div>
-  </div>
+  </el-card>
 </template>
 
 <script>
@@ -762,4 +754,5 @@ export default {
 </script>
 
 <style scoped src="../assets/styles/fileuploader.css">
+
 </style>
