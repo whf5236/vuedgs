@@ -1,8 +1,10 @@
 import os
 import zipfile
+import shutil
 from datetime import datetime
 from werkzeug.utils import secure_filename
 from flask import jsonify, current_app, send_from_directory
+import logging
 
 # 允许的文件扩展名
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'avi', 'mov', 'zip'}
@@ -105,7 +107,6 @@ def handle_single_file_upload(file, username):
                         extracted_path = os.path.join(root, extracted_file)
                         image_path = os.path.join(images_folder, extracted_file)
                         # 移动图片文件到images文件夹（而不是复制）
-                        import shutil
                         shutil.move(extracted_path, image_path)
 
         return jsonify({
@@ -379,3 +380,172 @@ def list_user_folders(username):
     folders.sort(key=lambda x: x['created_time'], reverse=True)
 
     return jsonify({'folders': folders}), 200
+
+def delete_user_folder(username, folder_name, folder_type):
+    """
+    删除指定用户的特定类型的文件夹。
+    folder_type: 'point_clouds' 或 'models'
+    """
+    logger = logging.getLogger('file_handler')
+    
+    # 安全检查，防止路径遍历攻击
+    if '..' in folder_name or '/' in folder_name or '\\' in folder_name:
+        raise ValueError("Invalid folder name.")
+
+    # 修正：确保 folder_type 是路径的一部分
+    base_path = os.path.join(current_app.root_path, 'data', username, folder_type)
+    folder_to_delete = os.path.join(base_path, folder_name)
+
+    logger.info(f"Attempting to delete folder: {folder_to_delete}")
+
+    if not os.path.exists(folder_to_delete) or not os.path.isdir(folder_to_delete):
+        # 根据文件夹类型自定义错误消息
+        if folder_type == 'models':
+            error_msg = f"Training result '{folder_name}' not found."
+        else:
+            error_msg = f"Folder '{folder_name}' not found."
+        
+        logger.error(f"{error_msg} (Path not found: {folder_to_delete})")
+        raise FileNotFoundError(error_msg)
+
+    try:
+        shutil.rmtree(folder_to_delete)
+        success_msg = f"Folder '{folder_name}' deleted successfully."
+        logger.info(success_msg)
+        return success_msg
+    except Exception as e:
+        error_msg = f"Error deleting folder '{folder_name}': {str(e)}"
+        logger.error(error_msg)
+        raise e # 重新引发异常，以便上层调用者可以捕获它
+
+def list_result_files_in_folder(username, folder_name):
+    """列出指定训练结果文件夹中的文件"""
+    user_dir = get_user_directory(username)
+    # 训练结果通常在 'output' 文件夹中，其命名与源文件夹相关
+    result_folder_path = os.path.join(user_dir, 'output', folder_name)
+
+    if not os.path.isdir(result_folder_path):
+        return None, "Result folder not found"
+
+    files_info = []
+    try:
+        for item in os.listdir(result_folder_path):
+            item_path = os.path.join(result_folder_path, item)
+            if os.path.isfile(item_path):
+                files_info.append({
+                    'filename': item,
+                    'path': f"/api/results/{username}/{folder_name}/{item}",
+                    'size': os.path.getsize(item_path),
+                    'type': item.split('.')[-1] if '.' in item else 'file'
+                })
+        return files_info, "Files listed successfully"
+    except Exception as e:
+        return None, f"Error listing files: {e}"
+
+def delete_point_cloud_folder(username, folder_name):
+    """安全地删除指定的点云数据文件夹（即用户上传的源文件夹）"""
+    try:
+        user_dir = get_user_directory(username)
+        folder_to_delete = os.path.join(user_dir, folder_name)
+
+        # 安全性检查：确保路径在用户目录下
+        if not os.path.abspath(folder_to_delete).startswith(os.path.abspath(user_dir)):
+            return False, "Deletion path is outside of user directory."
+
+        if os.path.isdir(folder_to_delete):
+            shutil.rmtree(folder_to_delete)
+            return True, f"Folder '{folder_name}' deleted successfully."
+        else:
+            return False, f"Folder '{folder_name}' not found."
+    except Exception as e:
+        return False, f"An error occurred while deleting the folder: {e}"
+
+def delete_training_output_folder(username, folder_name):
+    """安全地删除指定的训练输出文件夹"""
+    try:
+        # 训练输出文件夹通常位于 'data/{username}/output/{folder_name}'
+        base_dir = current_app.config['UPLOAD_FOLDER']
+        output_dir_parent = os.path.join(base_dir, username, 'output')
+        folder_to_delete = os.path.join(output_dir_parent, folder_name)
+
+        # 安全性检查：确保路径在用户输出目录下
+        if not os.path.abspath(folder_to_delete).startswith(os.path.abspath(output_dir_parent)):
+            return False, "Deletion path is outside of the allowed training output directory."
+
+        if os.path.isdir(folder_to_delete):
+            shutil.rmtree(folder_to_delete)
+            return True, f"Training result '{folder_name}' deleted successfully."
+        else:
+            # 兼容旧的命名（如果 'output' 文件夹直接以任务ID命名）
+            # 这里的 folder_name 可能是从 `training_results` 来的，它可能就是 model_id
+            # 检查一下旧路径
+            legacy_folder_path = os.path.join(get_user_directory(username), folder_name)
+            if os.path.isdir(legacy_folder_path) and 'point_cloud.ply' in os.listdir(legacy_folder_path):
+                 shutil.rmtree(legacy_folder_path)
+                 return True, f"Legacy training result '{folder_name}' deleted successfully."
+
+            return False, f"Training result '{folder_name}' not found."
+    except Exception as e:
+        return False, f"An error occurred while deleting the training result: {e}"
+
+
+    """列出指定文件夹中的所有文件"""
+    try:
+        user_dir = get_user_directory(username)
+        folder_path = os.path.join(user_dir, folder_name)
+        
+        # 安全性检查：确保路径在用户目录下
+        if not os.path.abspath(folder_path).startswith(os.path.abspath(user_dir)):
+            return None, "访问路径超出用户目录范围。"
+            
+        if not os.path.exists(folder_path):
+            return None, f"文件夹 '{folder_name}' 不存在。"
+            
+        files = os.listdir(folder_path)
+        files_info = []
+        
+        for file in files:
+            file_path = os.path.join(folder_path, file)
+            if os.path.isfile(file_path):
+                file_size = os.path.getsize(file_path)
+                files_info.append({
+                    "name": file,
+                    "size": file_size,
+                    "path": os.path.join(folder_name, file)
+                })
+                
+        return files_info, "文件列表获取成功"
+    except Exception as e:
+        return None, f"列出文件时出错: {e}"
+def delete_user_folder(username, folder_name, folder_type):
+    logger = logging.getLogger('file_handler')
+    
+    # 安全检查，防止路径遍历攻击
+    if '..' in folder_name or '/' in folder_name or '\\' in folder_name:
+        raise ValueError("Invalid folder name.")
+
+    # 修正：确保 folder_type 是路径的一部分
+    base_path = os.path.join(current_app.root_path, 'data', username, folder_type)
+    folder_to_delete = os.path.join(base_path, folder_name)
+
+    logger.info(f"Attempting to delete folder: {folder_to_delete}")
+
+    if not os.path.exists(folder_to_delete) or not os.path.isdir(folder_to_delete):
+        # 根据文件夹类型自定义错误消息
+        if folder_type == 'models':
+            error_msg = f"Training result '{folder_name}' not found."
+        else:
+            error_msg = f"Folder '{folder_name}' not found."
+        
+        logger.error(f"{error_msg} (Path not found: {folder_to_delete})")
+        raise FileNotFoundError(error_msg)
+
+    try:
+        shutil.rmtree(folder_to_delete)
+        success_msg = f"Folder '{folder_name}' deleted successfully."
+        logger.info(success_msg)
+        return success_msg
+    except Exception as e:
+        error_msg = f"Error deleting folder '{folder_name}': {str(e)}"
+        logger.error(error_msg)
+        raise e # 重新引发异常，以便上层调用者可以捕获它

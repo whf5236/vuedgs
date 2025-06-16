@@ -94,12 +94,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             if (iteration in checkpoint_iterations):
                 print("\n[ITER {}] Saving Checkpoint".format(iteration))
                 torch.save((gaussians.capture(), iteration), scene.model_path + "/chkpnt" + str(iteration) + ".pth")
-
-            iter_end.record(torch.cuda.current_stream())
             torch.cuda.synchronize()
-            iter_time = iter_start.elapsed_time(iter_end)
-            if iteration % 100 == 0:
-                print(f"Iteration {iteration} took {iter_time:.2f} ms")
     
 
 def prepare_output_and_logger(args):    
@@ -151,8 +146,7 @@ def parse_arguments():
 if __name__ == "__main__":
     # 解析参数
     args, lp, op, pp = parse_arguments()
-    
-    # 设置日志文件路径
+
     log_file_path = os.path.join(args.model_path, "train_script_crash.log")
 
     try:

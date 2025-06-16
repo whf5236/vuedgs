@@ -1,11 +1,6 @@
 let buffer;
 let vertexCount = 0;
 let viewProj;
-// 6*4 + 4 + 4 = 8*4
-// XYZ - Position (Float32)
-// XYZ - Scale (Float32)
-// RGBA - colors (uint8)
-// IJKL - quaternion/rot (uint8)
 const rowLength = 3 * 4 + 3 * 4 + 4 + 4;
 let lastProj = [];
 let depthIndex = new Uint32Array();

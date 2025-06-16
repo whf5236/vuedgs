@@ -48,7 +48,7 @@ def _internal_run_training_script(root_path, source_path, model_path, user_id, t
         training_tasks[task_id]['message'] = '开始训练'
 
         # 构建命令
-        script_path = os.path.join(root_path, 'gs', 'train.py')
+        script_path = os.path.join(root_path, 'backend', 'gs', 'train.py')
         command = [
             sys.executable,
             script_path,
@@ -116,17 +116,10 @@ def _internal_run_training_script(root_path, source_path, model_path, user_id, t
 
         # 更新进度
         training_tasks[task_id]['progress'] = 5
-        training_tasks[task_id]['message'] = 'Training started...'
+        training_tasks[task_id]['message'] = '训练开始...'
 
-        # 添加启动信息到日志
-        start_message = f"Starting training process with command: {' '.join(command)}"
-        training_tasks[task_id]['output_logs'].append(start_message)
-        logger.info(start_message)
-        
-        # 使用简单的方式读取输出
         from threading import Thread
 
-        # 定义读取输出的函数
         def read_output(pipe, is_error=False):
             prefix = "ERROR: " if is_error else ""
             for line in iter(pipe.readline, ''):
@@ -137,12 +130,6 @@ def _internal_run_training_script(root_path, source_path, model_path, user_id, t
                     # 记录到日志
                     log_prefix = "STDERR: " if is_error else "STDOUT: "
                     logger.info(f"{log_prefix}{line}")
-
-                    # 添加到任务日志
-                    training_tasks[task_id]['output_logs'].append(f"{prefix}{line}")
-                    # 限制日志列表大小
-                    if len(training_tasks[task_id]['output_logs']) > 1000:
-                        training_tasks[task_id]['output_logs'] = training_tasks[task_id]['output_logs'][-1000:]
 
                     # 解析输出，更新进度
                     if not is_error and "Iteration" in line:
@@ -163,27 +150,6 @@ def _internal_run_training_script(root_path, source_path, model_path, user_id, t
                     if not is_error and "Saving Gaussians" in line:
                         training_tasks[task_id]['message'] = 'Saving model checkpoint...'
 
-                    # 检查是否计算了测试集指标
-                    if not is_error and "Test set results" in line:
-                        # 尝试提取 PSNR 值
-                        try:
-                            if "PSNR" in line:
-                                psnr_parts = line.split("PSNR")
-                                psnr_value = float(psnr_parts[1].split()[0])
-                                training_tasks[task_id]['psnr'] = psnr_value
-                                training_tasks[task_id]['message'] = f'PSNR: {psnr_value:.2f}'
-                        except Exception as e:
-                            logger.error(f"提取 PSNR 失败: {str(e)}")
-
-                    # 检查高斯点数量
-                    if not is_error and "Number of points" in line:
-                        try:
-                            parts = line.split(":")
-                            if len(parts) > 1:
-                                num_gaussians = int(parts[1].strip().split()[0])
-                                training_tasks[task_id]['num_gaussians'] = num_gaussians
-                        except Exception as e:
-                            logger.error(f"提取高斯点数量失败: {str(e)}")
 
         # 启动读取线程
         stdout_thread = Thread(target=read_output, args=(process.stdout,))
@@ -211,9 +177,6 @@ def _internal_run_training_script(root_path, source_path, model_path, user_id, t
 
         # 检查进程是否成功完成
         return_code = process.returncode
-        end_message = f"Training process ended with return code: {return_code}"
-        training_tasks[task_id]['output_logs'].append(end_message)
-        logger.info(end_message)
 
         if return_code == 0:
             # 训练成功
@@ -236,10 +199,6 @@ def _internal_run_training_script(root_path, source_path, model_path, user_id, t
                 'timestamp': time.time()
             }
 
-            # 如果有 PSNR 值，添加到结果中
-            if 'psnr' in training_tasks[task_id]:
-                result_summary['psnr'] = training_tasks[task_id]['psnr']
-
             # 保存结果摘要到文件
             summary_file = os.path.join(model_path, 'training_summary.json')
             with open(summary_file, 'w') as f:
@@ -254,7 +213,6 @@ def _internal_run_training_script(root_path, source_path, model_path, user_id, t
             
             error_message = f"训练进程异常退出，返回码: {return_code}"  # 添加详细的错误信息
             training_tasks[task_id]['error'] = error_message
-            training_tasks[task_id]['output_logs'].append(f"ERROR: {error_message}")
 
             logger.error(f"训练失败: {task_id}, 返回码: {return_code}")
 
@@ -307,62 +265,91 @@ def generate_model_path(root_path, user_id, source_folder):
 @training_bp.route('/start', methods=['POST'])
 def start_training():
     data = request.json
-    if not data or 'source_path' not in data:
-        return jsonify({'error': '需要源文件夹'}), 400
+    logger.info(f"收到开始训练请求: {data}")
+
+    if not data:
+        logger.error("请求中没有提供JSON数据")
+        return jsonify({'error': 'No data provided'}), 400
+
+    # 兼容 userId 和 username
+    user_id = data.get('userId') or data.get('username')
     
-    # 从请求体中获取用户名
-    user_id = data.get('username')
-    source_path = data['source_path']
+    # 兼容 folderPath (文件夹名) 和 source_path (完整路径)
+    folder_path_or_name = data.get('folderPath') or data.get('source_path')
+    
+    params = data.get('params', {})
 
-    # 检查源路径是否存在
-    if not os.path.exists(source_path):
-        return jsonify({'error': '源路径不存在'}), 404
+    if not user_id or not folder_path_or_name:
+        logger.error(f"请求中缺少用户标识或路径。收到 user_id: {user_id}, folder_path: {folder_path_or_name}")
+        return jsonify({'error': 'userId/username and folderPath/source_path are required'}), 400
 
+    # 如果传入的是完整路径，则提取最后的文件夹名
+    if os.path.isabs(folder_path_or_name):
+        folder_name = os.path.basename(folder_path_or_name)
+    else:
+        folder_name = folder_path_or_name
+
+    # 获取Flask应用的根目录 (...\login_project\backend)
+    backend_path = current_app.root_path
+    # 从中推断出项目的工作区根目录 (...\login_project), 用于寻找 gs/train.py
+    project_root = os.path.dirname(backend_path)
+
+    # 构建数据源的绝对路径 (在 backend/data 目录下)
+    source_path = os.path.join(backend_path, 'data', user_id, folder_name)
+    logger.info(f"构建的数据源路径: {source_path}")
+    
+    # 检查数据源目录是否存在
     if not os.path.isdir(source_path):
-        return jsonify({'error': '源路径不是文件夹'}), 400
+        logger.error(f"数据源路径不存在: {source_path}")
+        # 注意：这里的路径是服务器上的绝对路径，在返回给前端时请注意信息安全
+        return jsonify({'error': f'Source path does not exist on server'}), 400
 
-    # 获取源文件夹名称并生成模型路径
-    source_folder = os.path.basename(source_path)
-    model_path = generate_model_path(current_app.root_path, user_id, source_folder)
-    
-    # 确保模型输出目录存在
-    os.makedirs(model_path, exist_ok=True)
+    # 生成模型输出路径 (在 backend/data 目录下)
+    model_path = generate_model_path(backend_path, user_id, folder_name)
+    logger.info(f"生成的模型输出路径: {model_path}")
 
-    # 获取训练参数
-    training_params = data.get('params', {})
-    websocket_port = data.get('websocket_port', 6009)  # 从请求中获取端口，默认6009
-    websocket_host = data.get('websocket_host', 'localhost')  # 从请求中获取主机，默认localhost
+    # 合并和准备训练参数
+    training_params = {
+        'sh_degree': 3,
+        'iterations': 7000,
+        'test_iterations': [7000, 30000],
+        'save_iterations': [7000, 30000],
+        'eval': False,
+        'quiet': False
+    }
+    training_params.update(params or {})
 
+    websocket_host = training_params.get('ip', '127.0.0.1')
+    websocket_port = training_params.get('port', 6009)
     training_params['ip'] = websocket_host
     training_params['port'] = websocket_port
+    
     # 生成任务ID
     task_id = f"{user_id}_{folder_name}_{int(time.time())}"
-    logger.info(f"生成任务ID: {task_id}")
+    logger.info(f"生成的任务ID: {task_id}")
+
+    # 检查此任务是否已在运行
+    for tid, task_info in training_tasks.items():
+        if task_info.get('source_path') == source_path and task_info.get('status') in ['running', 'initializing', '处理中']:
+            return jsonify({'error': f'任务已在运行: {tid}'}), 400
 
     # 启动训练线程
-    # 传递应用根目录，而不是整个app对象
-    root_path = current_app.root_path
+    # 传递 project_root 以便脚本能找到 gs/train.py
     thread = threading.Thread(
-        target=run_training_script_wrapper,
-        args=(root_path, source_path, model_path, user_id, task_id, training_params)
+        target=_internal_run_training_script,
+        args=(project_root, source_path, model_path, user_id, task_id, training_params)
     )
     thread.daemon = True
     thread.start()
+
     return jsonify({
         'message': 'Training started',
         'task_id': task_id,
-        'status': 'processing',
-        'model_path': model_path,
-        'visualization': {
-            'host': websocket_host,
-            'port': websocket_port
-        },
         'websocket': {
             'host': websocket_host,
-            'port': websocket_port,
-            'url': f'ws://{websocket_host}:{websocket_port}'
+            'port': websocket_port
         }
-    }), 202
+    }), 200
 
 @training_bp.route('/status/<task_id>', methods=['GET'])
 def get_task_status(task_id):
@@ -371,7 +358,6 @@ def get_task_status(task_id):
     """
     # 使用请求参数中的用户名
     user_id = request.args.get('username')
-
     if task_id not in training_tasks:
         return jsonify({'error': 'Task not found'}), 404
 
@@ -387,16 +373,11 @@ def get_task_status(task_id):
         'message': training_tasks[task_id]['message']
     }
 
-    # 添加输出日志
-    if 'output_logs' in training_tasks[task_id]:
-        task_info['output_logs'] = training_tasks[task_id]['output_logs'][-100:]
 
     # 如果任务已完成，添加结果信息
     if training_tasks[task_id]['status'] == 'completed':
         task_info['model_path'] = training_tasks[task_id]['model_path']
         task_info['processing_time'] = training_tasks[task_id]['end_time'] - training_tasks[task_id]['start_time']
-        if 'psnr' in training_tasks[task_id]:
-            task_info['psnr'] = training_tasks[task_id]['psnr']
 
     # 如果任务失败，添加错误信息
     if training_tasks[task_id]['status'] == 'failed' and 'error' in training_tasks[task_id]:
@@ -473,66 +454,59 @@ def cancel_training_task(username, task_id):
 @training_bp.route('/active', methods=['GET'])
 def get_active_tasks():
     """
-    获取用户的活动训练任务
+    获取用户的活动训练任务，并清理所有已结束的任务。
     """
     user_id = request.args.get('username')
     
-    # 获取用户的活动任务（只包含真正在处理中的任务）
+    if not user_id:
+        return jsonify({'error': 'Username is required'}), 400
+
     active_tasks = []
-    for task_id, task_info in training_tasks.items():
-        if task_info['user_id'] == user_id and task_info['status'] in ['processing', 'initializing']:
-            active_tasks.append({
-                'task_id': task_id,
-                'status': task_info['status'],
-                'progress': task_info['progress'],
-                'message': task_info['message'],
-                'start_time': task_info['start_time']
-            })
-    
-    # 清理已取消的任务（立即清理，不等待5分钟）
-    cancelled_tasks_to_remove = []
-    for task_id, task_info in training_tasks.items():
-        if (task_info['user_id'] == user_id and 
-            task_info['status'] == 'cancelled'):
-            cancelled_tasks_to_remove.append(task_id)
-    
-    for task_id in cancelled_tasks_to_remove:
-        del training_tasks[task_id]
-        logger.info(f"已清理取消的任务: {task_id}")
+    tasks_to_remove = []
+
+    # 使用 list(training_tasks.items()) 避免在迭代时修改字典
+    for task_id, task_info in list(training_tasks.items()):
+        if isinstance(task_info, dict) and task_info.get('user_id') == user_id:
+            status = task_info.get('status')
+            
+            if status in ['处理中', 'initializing']:
+                active_tasks.append({
+                    'task_id': task_id,
+                    'status': task_info.get('status'),
+                    'progress': task_info.get('progress'),
+                    'message': task_info.get('message'),
+                    'start_time': task_info.get('start_time')
+                })
+            elif status in ['completed', 'failed', 'cancelled']:
+                tasks_to_remove.append(task_id)
+
+    # 集中清理所有已完成、失败或取消的任务
+    for task_id in tasks_to_remove:
+        if task_id in training_tasks:
+            try:
+                del training_tasks[task_id]
+                logger.info(f"已从内存中清理已结束的任务: {task_id}")
+            except KeyError:
+                logger.warning(f"尝试清理一个不存在的任务，可能已被其他进程处理: {task_id}")
     
     return jsonify({'active_tasks': active_tasks}), 200
 
 @training_bp.route('/cleanup', methods=['POST'])
 def cleanup_completed_tasks():
     """
-    清理已完成的训练任务
+    此函数的功能已合并到 get_active_tasks 中，保留以实现向后兼容。
     """
-    user_id = request.args.get('username')
-    
-    # 清理已完成、失败或取消的任务
-    tasks_to_remove = []
-    for task_id, task_info in training_tasks.items():
-        if (task_info['user_id'] == user_id and 
-            task_info['status'] in ['completed', 'failed', 'cancelled'] and
-            'end_time' in task_info and
-            time.time() - task_info['end_time'] > 300):  # 5分钟后清理
-            tasks_to_remove.append(task_id)
-    
-    for task_id in tasks_to_remove:
-        del training_tasks[task_id]
-        logger.info(f"已清理任务: {task_id}")
-    
-    return jsonify({'cleaned_tasks': len(tasks_to_remove)}), 200
+    return jsonify({'cleaned_tasks': 0, 'message': 'Cleanup is now handled by get_active_tasks.'}), 200
 
 @training_bp.route('/results', methods=['GET'])
 def get_results():
-    """
-    获取用户的训练结果列表
-    """
+
     # 使用请求参数中的用户名
     user_id = request.args.get('username')
-
     # 构建用户模型文件夹路径
+    if user_id is None:
+        return jsonify({'error': '未提供用户名'}), 400
+        
     user_models_folder = os.path.join(current_app.root_path, 'data', user_id, 'models')
 
     # 检查用户模型文件夹是否存在
@@ -559,10 +533,7 @@ def get_results():
                     'folder_name': item,
                     'model_path': item_path,
                     'created_time': os.path.getctime(item_path),
-                    'status': 'unknown'
+                    'status': '未知'
                 })
-
-    # 按时间戳降序排序
     results.sort(key=lambda x: x.get('timestamp', 0) if isinstance(x, dict) and 'timestamp' in x else 0, reverse=True)
-
     return jsonify({'results': results}), 200

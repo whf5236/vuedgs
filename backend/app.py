@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, decode_token
-# Socket.IO import removed
+from flask_socketio import SocketIO, emit
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 from datetime import timedelta, datetime
@@ -12,13 +12,17 @@ from training import training_bp
 import video_processor
 import jwt as jwt_lib
 import json
+import logging
+import eventlet
+
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Initialize Flask app
-app = Flask(__name__)
-# 配置CORS，允许所有来源访问
-CORS(app, resources={r"/api/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"], "allow_headers": ["Content-Type", "Authorization"]}}, supports_credentials=True)
-
-# Socket.IO initialization removed
+basedir = os.path.abspath(os.path.dirname(__file__))
+app = Flask(__name__, instance_path=os.path.join(basedir, 'instance'))
+os.makedirs(app.instance_path, exist_ok=True)
 
 # Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
@@ -38,57 +42,18 @@ app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024 * 1024  # 1GB max upload siz
 # Create upload folder if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# 配置CORS
+CORS(app, resources={r"/api/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"], "allow_headers": ["Content-Type", "Authorization"]}}, supports_credentials=True)
+
 # Initialize extensions
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
-
-# Socket.IO client storage removed
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Register blueprints
 app.register_blueprint(point_cloud_bp, url_prefix='/api/point-cloud')
 app.register_blueprint(training_bp, url_prefix='/api/training')
 
-
-# JWT 回调函数
-@jwt.token_in_blocklist_loader
-def check_if_token_revoked(jwt_header, jwt_payload):
-    # 使用参数以避免IDE警告
-    print(f"Checking token: {jwt_payload}, header: {jwt_header}")
-    return False
-
-@jwt.unauthorized_loader
-def unauthorized_callback(callback):
-    print(f"Unauthorized: {callback}")
-    return jsonify({
-        'status': 'error',
-        'message': f'Unauthorized: {callback}',
-        'code': 401
-    }), 401
-
-@jwt.invalid_token_loader
-def invalid_token_callback(callback):
-    print(f"Invalid token: {callback}")
-    return jsonify({
-        'status': 'error',
-        'message': f'Invalid token: {callback}',
-        'code': 401
-    }), 401
-
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(200), nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=True)
-    nickname = db.Column(db.String(80), nullable=True)
-
-    def __init__(self, username, password_hash, email=None, nickname=None):
-        self.username = username
-        self.password_hash = password_hash
-        self.email = email
-        self.nickname = nickname
-
-    def __repr__(self):
-        return f'<User {self.username}>'
 
 # Create database tables
 def init_db():
@@ -96,7 +61,6 @@ def init_db():
     with app.app_context():
         # 只创建不存在的表，不删除现有数据
         db.create_all()
-
 # Routes
 @app.route('/api/register', methods=['POST'])
 def register():
@@ -121,14 +85,8 @@ def register():
 @app.route('/api/login', methods=['POST'])
 def login():
     try:
-        # 获取原始请求数据
-        raw_data = request.get_data()
-        print(f"原始请求数据: {raw_data}") 
-        data = request.get_json()
-        print(f"解析后的JSON数据: {data}")
-        print(f"请求Content-Type: {request.content_type}")
-        print(f"请求Headers: {dict(request.headers)}")
-        
+
+        data = request.get_json()        
         if not data:
             print("错误: 没有接收到JSON数据")
             return jsonify({'message': 'No JSON data received'}), 400
@@ -136,34 +94,24 @@ def login():
         username = data.get('username')
         password = data.get('password')
         
-        print(f"提取的用户名: '{username}', 密码: '{password}'")
         
         if not username or not password:
             print("错误: 用户名或密码为空")
             return jsonify({'message': 'Username and password required'}), 400
-        
         user = User.query.filter_by(username=username).first()
         print(f"数据库查找用户结果: {user}")
         
         if user:
-            print(f"找到用户: {user.username}, ID: {user.id}")
-            print(f"用户密码哈希: {user.password_hash[:20]}...")
-            
-            password_check = check_password_hash(user.password_hash, password)
-            print(f"密码验证结果: {password_check}")
-            
+            password_check = check_password_hash(user.password_hash, password)    
             if password_check:
                 access_token = create_access_token(identity=str(user.id))
-                print(f"登录成功，用户: {username}, Token: {access_token[:20]}...")
                 return jsonify({
                     'access_token': access_token,
                     'username': username
                 }), 200
             else:
-                print(f"密码验证失败，用户: {username}")
                 return jsonify({'message': 'Invalid password'}), 401
         else:
-            print(f"用户不存在: {username}")
             return jsonify({'message': 'User not found'}), 401
             
     except Exception as e:
@@ -244,9 +192,7 @@ def get_user_profile():
     current_user = get_jwt_identity()
     user = User.query.filter_by(username=current_user).first()
     if not user:
-        return jsonify({'message': 'User not found'}), 404
-    
-    # 从数据库中获取用户信息
+        return jsonify({'message': 'User not found'}), 404 
     return jsonify({
         'username': user.username,
         'email': user.email if hasattr(user, 'email') else '',
@@ -339,8 +285,6 @@ def upload_video():
     except (ValueError, TypeError):
         frame_rate = 1
 
-    # 获取自定义文件夹名称（如果有）
-    # 首先尝试从 URL 参数获取，然后尝试从表单数据获取
     custom_folder_name = request.args.get('custom_folder_name') or request.form.get('custom_folder_name')
     print(f"视频上传 - 自定义文件夹名称 (URL 参数或表单): {custom_folder_name}")
 
@@ -438,12 +382,8 @@ def upload_point_cloud_file(username):
     return jsonify({'message': 'File upload failed'}), 400
 
 @app.route('/api/files/<username>/<path:filename>', methods=['GET'])
-# 移除 JWT 认证要求
 def get_file(username, filename):
-    # 不再检查用户身份
-    # 添加缓存控制头，防止缓存问题
     response = file_handler.get_user_file(username, filename)
-    # 只对 Response 对象添加 headers
     if isinstance(response, Response):
         response.headers.add('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
         response.headers.add('Pragma', 'no-cache')
@@ -453,22 +393,144 @@ def get_file(username, filename):
 @app.route('/api/files/<username>', methods=['GET'])
 # 移除 JWT 认证要求
 def list_files(username):
-    # 不再检查用户身份
     return file_handler.list_user_files(username)
 
 @app.route('/api/folders/<username>', methods=['GET'])
 # 移除 JWT 认证要求
 def list_folders(username):
-    # 不再检查用户身份
     return file_handler.list_user_folders(username)
 
+@app.route('/api/folders/<username>/<path:folder_name>', methods=['DELETE'])
+@jwt_required()
+def delete_folder_route(username, folder_name):
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
 
+    # 安全检查：确保当前登录用户与请求删除的文件夹所属用户一致
+    if not user or user.username != username:
+        return jsonify({'message': 'Forbidden: You can only delete your own folders.'}), 403
+    
+    response_data, status_code = _delete_folder_logic(username, folder_name)
+    return jsonify(response_data), status_code
+
+def _delete_folder_logic(username, folder_name):
+    """提取出的核心删除逻辑，供HTTP和WebSocket调用。返回(dict, status_code)元组"""
+    try:
+        # 根据错误提示，添加缺少的folder_type参数，默认为None
+        result = file_handler.delete_user_folder(username, folder_name, folder_type=None)
+        return result, 200
+    except FileNotFoundError:
+        return {'message': 'Folder not found'}, 404
+    except Exception as e:
+        app.logger.error(f"Error deleting folder {folder_name} for user {username}: {e}")
+        return {'message': f'An error occurred: {str(e)}'}, 500
+
+@app.route('/api/results/<username>/<path:folder_name>', methods=['GET'])
+@jwt_required()
+def list_result_files_route(username, folder_name):
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
+
+    if not user or user.username != username:
+        return jsonify({'message': 'Forbidden'}), 403
+
+    try:
+        result = file_handler.list_result_files_in_folder(username, folder_name)
+        return jsonify(result), 200
+    except FileNotFoundError:
+        return jsonify({'message': 'Result folder not found'}), 404
+    except Exception as e:
+        app.logger.error(f"Error listing result files for {folder_name}: {e}")
+        return jsonify({'message': f'An error occurred: {str(e)}'}), 500
+
+# WebSocket Event Handlers
+@socketio.on('connect')
+def handle_connect():
+    print('Client connected')
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print('Client disconnected')
+
+@socketio.on('delete_folder')
+def handle_delete_folder(data):
+    username = data.get('username')
+    folder_name = data.get('folderName')
+    folder_type = data.get('folderType', 'models')  # 前端应提供类型，默认为 'models'
+    
+    if not all([username, folder_name, folder_type]):
+        emit('delete_folder_response', {'success': False, 'error': 'Missing required data.'})
+        return
+
+    logger.info(f"User '{username}' requested to delete folder '{folder_name}' of type '{folder_type}' via WebSocket.")
+
+    try:
+        # 调用 file_handler 中的删除函数，并传递 folder_type
+        message = file_handler.delete_user_folder(username, folder_name, folder_type)
+        emit('delete_folder_response', {'success': True, 'message': message})
+        logger.info(f"Successfully deleted folder '{folder_name}' for user '{username}'.")
+    except (FileNotFoundError, ValueError) as e:
+        logger.error(f"Failed to delete folder '{folder_name}' for user '{username}': {e}")
+        emit('delete_folder_response', {'success': False, 'error': str(e)})
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while deleting folder '{folder_name}': {e}")
+        emit('delete_folder_response', {'success': False, 'error': 'An unexpected error occurred.'})
+
+@socketio.on('delete_training_result')
+def handle_delete_training_result(data):
+    """处理通过WebSocket删除训练结果文件夹的请求"""
+    token = data.get('token')
+    folder_name = data.get('folder_name')
+
+    if not token:
+        return {'status': 'error', 'message': 'Missing authentication token.'}
+
+    try:
+        decoded_token = decode_token(token)
+        user_id = decoded_token['sub']
+        user = User.query.get(int(user_id))
+        
+        if not user:
+            return {'status': 'error', 'message': 'User not found.'}
+        
+        username = user.username
+        print(f"User '{username}' requested to delete training result '{folder_name}' via WebSocket.")
+
+        success, message = file_handler.delete_training_output_folder(username, folder_name)
+        
+        if success:
+            print(f"Successfully deleted training result '{folder_name}' for user '{username}'.")
+            # 广播训练结果列表已更新 (可以使用与文件夹更新相同的事件)
+            socketio.emit('folders_updated', {'username': username, 'type': 'training_results'})
+            return {'status': 'success', 'message': message}
+        else:
+            print(f"Failed to delete training result '{folder_name}' for user '{username}': {message}")
+            return {'status': 'error', 'message': message}
+
+    except jwt_lib.ExpiredSignatureError:
+        return {'status': 'error', 'message': 'Token has expired.'}
+    except jwt_lib.InvalidTokenError:
+        return {'status': 'error', 'message': 'Invalid token.'}
+    except Exception as e:
+        print(f"An unexpected error occurred during training result deletion: {e}")
+        return {'status': 'error', 'message': f'An unexpected error occurred: {e}'}
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(200), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=True)
+    nickname = db.Column(db.String(80), nullable=True)
+
+    def __init__(self, username, password_hash, email=None, nickname=None):
+        self.username = username
+        self.password_hash = password_hash
+        self.email = email
+        self.nickname = nickname
+
+    def __repr__(self):
+        return f'<User {self.username}>'
 
 if __name__ == '__main__':
-    print("正在初始化数据库...")
     init_db()
-    print(f"JWT_TOKEN_LOCATION: {app.config['JWT_TOKEN_LOCATION']}")
-    print(f"JWT_HEADER_NAME: {app.config['JWT_HEADER_NAME']}")
-    print(f"JWT_HEADER_TYPE: {app.config['JWT_HEADER_TYPE']}")
-    
-    app.run(debug=False, host='0.0.0.0', port=5000)
+    socketio.run(app, debug=False, host='0.0.0.0', port=5000)

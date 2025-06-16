@@ -1,7 +1,7 @@
 <template>
   <div class="training-component">
     <!-- 源文件夹选择区域 -->
-    <div class="parameter-section">
+    <div class="parameter-section glass-card">
       <h5>
         <i class="fas fa-folder-open me-2"></i>
         源文件夹选择区域
@@ -45,7 +45,7 @@
     </div>
 
     <!-- 训练参数配置区域 -->
-    <div class="parameter-section">
+    <div class="parameter-section glass-card">
       <h5>
         <i class="fas fa-sliders-h me-2"></i>
         Training Parameters
@@ -499,7 +499,7 @@
     </div>
 
     <!-- 训练控制区域 -->
-    <div class="parameter-section">
+    <div class="parameter-section glass-card">
       <h5>
         <i class="fas fa-play-circle me-2"></i>
         训练控制模块
@@ -587,7 +587,7 @@
     </div>
 
     <!-- 训练历史记录 -->
-    <div class="parameter-section">
+    <div class="parameter-section glass-card">
       <h5>
         <i class="fas fa-history me-2"></i>
         Training History
@@ -630,9 +630,14 @@
               <td>{{ result.processing_time ? formatTime(result.processing_time) : 'N/A' }}</td>
               <td>{{ result.timestamp ? formatDate(result.timestamp) : (result.created_time ? formatDate(result.created_time) : 'Unknown') }}</td>
               <td>
-                <button class="btn btn-sm btn-outline-primary me-1" @click="viewResultDetails(result)">
-                  <i class="fas fa-eye"></i>
-                </button>
+                <el-button
+                  type="danger"
+                  size="small"
+                  @click="confirmDeleteResult(result)"
+                  :icon="icons.Delete"
+                >
+                  删除
+                </el-button>
               </td>
             </tr>
           </tbody>
@@ -648,7 +653,10 @@ import { TrainingService } from '@/services/trainingService';
 import { TrainingParams } from '@/utils/trainingParams';
 import { TaskPollingManager } from '@/utils/taskPollingManager';
 import { TrainingUtils } from '@/utils/trainingUtils';
-import { ElNotification } from 'element-plus';
+import { ElNotification, ElMessage, ElMessageBox } from 'element-plus';
+import { shallowRef } from 'vue';
+import { Delete } from '@element-plus/icons-vue';
+import wsClient from '@/utils/WebSocketClient'; // 导入新的WebSocket客户端
 
 export default {
   name: 'TrainingComponent',
@@ -673,7 +681,11 @@ export default {
       trainingParams: TrainingParams.getDefaultParams(),
       
       // 轮询管理器
-      pollingManager: new TaskPollingManager()
+      pollingManager: null,
+
+      icons: {
+        Delete: shallowRef(Delete),
+      }
     };
   },
   computed: {
@@ -749,10 +761,32 @@ export default {
     }
     // The watcher will handle cases where the username is set after mount.
     eventBus.on('point-cloud-processed', this.handlePointCloudProcessed);
+
+    this.fetchTrainingResults();
+    this.fetchPointCloudFolders();
+    this.pollingManager = new TaskPollingManager(this.updateTaskStatus.bind(this));
+
+    // 连接WebSocket
+    const token = localStorage.getItem('token');
+    if(token && !wsClient.isConnected()) {
+        // 注意：这里的URL需要与您的后端SocketIO服务器地址一致
+        wsClient.connect('http://localhost:5000', token);
+    }
+    
+    // 监听文件夹更新事件
+    wsClient.on('folders_updated', this.handleFoldersUpdated);
   },
   beforeUnmount() {
     this.clearTaskCheckInterval();
     eventBus.off('point-cloud-processed', this.handlePointCloudProcessed);
+    if (this.pollingManager) {
+        this.pollingManager.stopPolling();
+    }
+    // 移除监听并断开连接
+    wsClient.off('folders_updated');
+    if(wsClient.isConnected()) {
+        wsClient.disconnect();
+    }
   },
   methods: {
     initializeComponent() {
@@ -1096,35 +1130,16 @@ export default {
            console.log(`Task ${taskId} not found on backend. Clearing from store.`);
            this.$store.dispatch('clearTrainingTask');
         }
-        // Otherwise, might be a network issue, keep local state for now or retry verification later.
       }
     },
 
     forceReset() {
-      console.log('Executing force reset...');
-        this.clearTaskCheckInterval();
+
+      this.clearTaskCheckInterval();
       this.resetTaskState(); // This now clears Vuex and resets local component state
-      
       this.$message.success('All training states have been reset.');
       this.fetchFolders(); // Refresh folder list
       this.fetchResults(); // Refresh history
-    },
-
-    viewResults() {
-      // Placeholder: Implement navigation or modal to show results
-      if (this.currentTask && this.currentTask.model_path) {
-        this.$message.info(`Results for ${this.currentTask.folder_name} are in ${this.currentTask.model_path}. Visualization/details view to be implemented.`);
-         // Example: emit an event or navigate to a results viewer component
-         // eventBus.emit('view-training-results', this.currentTask);
-      } else {
-        this.$message.warn('No completed task or model path available to view results.');
-      }
-    },
-
-    viewResultDetails(result) {
-      // Placeholder: Implement navigation or modal for specific result details
-      this.$message.info(`Viewing details for ${result.folder_name}. Details view to be implemented.`);
-      // Example: this.$router.push({ name: 'TrainingResultDetail', params: { taskId: result.task_id } });
     },
 
     handlePointCloudProcessed(processedData) {
@@ -1140,7 +1155,6 @@ export default {
 
     formatDate(timestamp) {
       if (!timestamp) return 'Unknown';
-      // Assuming timestamp is in seconds if it's a number and not too large
       const date = new Date( (typeof timestamp === 'number' && timestamp < 10000000000) ? timestamp * 1000 : timestamp);
       return date.toLocaleString();
     },
@@ -1173,10 +1187,196 @@ export default {
         this.folders = [];
         this.$message.error('Failed to parse point cloud folder list.');
       }
-    }
+    },
+
+    async confirmDeleteResult(result) {
+      try {
+        await ElMessageBox.confirm(
+          `您确定要永久删除训练结果文件夹 "${result.folder_name}" 及其所有内容吗？此操作不可逆。`,
+          '警告',
+          {
+            confirmButtonText: '确定删除',
+            cancelButtonText: '取消',
+            type: 'warning',
+          }
+        );
+        this.deleteResult(result);
+      } catch (e) {
+        ElMessage.info('删除操作已取消');
+      }
+    },
+
+    async deleteResult(result) {
+      try {
+        console.log("即将删除的训练结果:", result);
+        const username = this.$store.state.username;
+        const folderName = result.folder_name;
+
+        // 使用 emitWithAck 等待服务器响应，但不在这里刷新
+        const response = await wsClient.emitWithAck('delete_folder', {
+          username: username,
+          folderName: folderName,
+          folderType: 'models'
+        }, 30000); // 30秒超时
+
+        if (response.status === 'success') {
+          this.$message.success(response.message || '删除请求已成功发送');
+        } else {
+          this.$message.error(response.message || '删除失败');
+        }
+
+      } catch (error) {
+        console.error("删除训练结果失败:", error);
+        this.$message.error(error.message || '删除请求失败或超时');
+      }
+    },
+
+    async fetchPointCloudFolders() {
+      try {
+        const username = this.$store.getters.user?.username;
+        if (!username) {
+          return;
+        }
+        const response = await TrainingService.getPointCloudResults(username);
+        if (response && Array.isArray(response.results)) {
+          this.pointCloudFolders = response.results;
+        } else {
+          this.pointCloudFolders = [];
+          console.warn('Point cloud results not in expected format:', response);
+        }
+      } catch (err) {
+        console.error('获取已处理的点云文件夹列表失败:', err);
+        this.pointCloudFolders = [];
+        this.$message.error('无法加载已处理的点云文件夹列表。');
+      }
+    },
+
+    handleFoldersUpdated(data) {
+      const currentUser = this.$store.getters.user?.username;
+      if (data.username === currentUser) {
+        this.fetchTrainingResults();
+        this.fetchPointCloudFolders();
+
+      }
+    },
+
+    fetchTrainingResults() {
+      // Implementation of fetchTrainingResults method
+    },
+
+    updateTaskStatus(updatedTask) {
+        const index = this.trainingResults.findIndex(t => t.task_id === updatedTask.task_id);
+        if (index !== -1) {
+            // 使用Vue的响应式方式更新数组元素
+            this.trainingResults.splice(index, 1, { ...this.trainingResults[index], ...updatedTask });
+        } else {
+            // 如果任务不在列表中，可能是新任务，则添加到列表
+            this.trainingResults.unshift(updatedTask);
+        }
+    },
   }
 };
 </script>
 
-<style scoped src="../assets/styles/trainingComponent.css">
+<style scoped>
+/* Main layout for training component */
+.training-component {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  color: #fff;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(5px);
+  border-radius: 15px;
+  padding: 25px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+h5, h6 {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 10px;
+  margin-bottom: 20px !important;
+  font-weight: 600;
+}
+
+/* Form Styles */
+.parameter-row {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 15px;
+}
+.parameter-row > div {
+  flex: 1;
+}
+
+.parameter-label {
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #f0f0f0;
+}
+.parameter-description {
+  font-size: 0.8em;
+  color: #ccc;
+  margin-top: 5px;
+}
+
+.form-control, .form-select {
+  background-color: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+}
+.form-control:focus, .form-select:focus {
+  background-color: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  border-color: #4e73df;
+  box-shadow: none;
+}
+.form-select option {
+  background-color: #333;
+}
+
+.form-range {
+  accent-color: #4e73df;
+}
+
+.form-check-input {
+  background-color: rgba(0,0,0,0.3);
+  border-color: rgba(255,255,255,0.3);
+}
+.form-check-input:checked {
+  background-color: #4e73df;
+  border-color: #4e73df;
+}
+
+.btn {
+  background-color: rgba(78, 115, 223, 0.6) !important;
+  border: none !important;
+}
+
+:deep(.el-table) {
+  --el-table-bg-color: transparent !important;
+  --el-table-tr-bg-color: transparent !important;
+  --el-table-header-bg-color: rgba(255,255,255,0.1) !important;
+  --el-table-row-hover-bg-color: rgba(255,255,255,0.05) !important;
+  color: #f0f0f0 !important;
+}
+:deep(.el-table th), :deep(.el-table td) {
+    background-color: transparent !important;
+    color: #f0f0f0 !important;
+    border-bottom: 1px solid rgba(255,255,255,0.2) !important;
+}
+:deep(.el-table th) {
+  color: #fff !important;
+}
+
+</style>
+<style>
+/* Remove bootstrap row negative margins if they exist */
+.row {
+    --bs-gutter-x: 1.5rem;
+}
 </style>

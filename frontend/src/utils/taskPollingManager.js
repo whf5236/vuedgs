@@ -27,8 +27,8 @@ export class TaskPollingManager {
         if (onError) {
           onError(error);
         }
-        // 发生错误时停止轮询
-        this.stopPolling();
+        // 发生错误时不再自动停止轮询，由调用方决定
+        // this.stopPolling(); 
       }
     }, this.pollingDelay);
   }

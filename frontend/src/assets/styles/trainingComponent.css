@@ -7,18 +7,18 @@
 
 .parameter-section {
   margin-bottom: var(--spacing-xl);
-  background-color: var(--card-bg);
+  background-color: transparent;
   border-radius: var(--border-radius-md);
-  box-shadow: var(--shadow-md);
   padding: var(--spacing-lg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .parameter-section h5 {
-  color: var(--primary-color);
+  color: #333;
   font-weight: 600;
   margin-bottom: var(--spacing-lg);
   padding-bottom: var(--spacing-md);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .parameter-group {
@@ -71,9 +71,9 @@
 .source-folder-selector {
   margin-bottom: var(--spacing-xl);
   padding: var(--spacing-lg);
-  background-color: var(--light-color);
+  background-color: transparent;
   border-radius: var(--border-radius-md);
-  border: 1px dashed var(--border-color);
+  border: 1px dashed rgba(0, 0, 0, 0.2);
 }
 
 .folder-list {
@@ -88,17 +88,16 @@
 }
 
 .folder-item.active {
-  background-color: #eaecf4;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 0.25rem rgba(78, 115, 223, 0.25);
+  background-color: rgba(77, 134, 249, 0.2);
+  border-color: rgba(77, 134, 249, 0.9);
+  box-shadow: 0 0 12px rgba(77, 134, 249, 0.2);
 }
 
 .training-status {
   margin-top: var(--spacing-xl);
   padding: var(--spacing-lg);
-  background-color: var(--card-bg);
+  background-color: transparent;
   border-radius: var(--border-radius-md);
-  box-shadow: var(--shadow-md);
 }
 
 .parameter-tooltip {
@@ -178,7 +177,7 @@
 
 .folder-item {
   padding: 10px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -190,11 +189,11 @@
 }
 
 .folder-item:hover {
-  background-color: #f9f9f9;
+  background-color: rgba(249, 249, 249, 0.1);
 }
 
 .folder-item.active {
-  background-color: #e0eafc;
+  background-color: rgba(224, 234, 252, 0.2);
   font-weight: bold;
 }
 
@@ -214,17 +213,17 @@
 }
 
 .parameter-section {
-  background-color: #fff;
+  background-color: transparent;
   padding: 20px;
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  box-shadow: none;
   margin-bottom: 20px;
       }
       
 .parameter-section h5 {
   color: #333;
   margin-bottom: 15px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   padding-bottom: 10px;
       }
       

@@ -14,12 +14,14 @@ const routes = [
   {
     path: '/register',
     name: 'Register',
-    component: Register
+    component: Register,
+    meta: { layout: 'AuthLayout' }
   },
   {
     path: '/login',
     name: 'Login',
-    component: () => import('@/views/Login.vue')
+    component: () => import('@/views/Login.vue'),
+    meta: { layout: 'AuthLayout' }
   },
   {
     path: '/dashboard',
@@ -58,14 +60,9 @@ window.tokenValidationCache = tokenValidationCache
 
 // 路由守卫
 router.beforeEach(async (to, from, next) => {
-  console.log(`[Router] 导航至: ${to.path}`)
   const token = localStorage.getItem('token')
-  console.log(`[Router] Token存在: ${!!token}`)
-  
   if (to.meta.requiresAuth) {
-    console.log(`[Router] 路由需要认证: ${to.path}`)
     if (!token) {
-      console.log('[Router] 未找到token，跳转到登录页')
       next('/login')
       return
     }
@@ -77,14 +74,12 @@ router.beforeEach(async (to, from, next) => {
                         (now - tokenValidationCache.lastCheck) < tokenValidationCache.cacheTimeout
     
     if (isCacheValid) {
-      console.log('[Router] 使用缓存的token验证结果')
       next()
       return
     }
     
     // 验证token有效性
     try {
-      console.log('[Router] 尝试验证token...')
       const response = await fetch('http://localhost:5000/api/verify-token', {
         method: 'GET',
         headers: {
@@ -93,16 +88,12 @@ router.beforeEach(async (to, from, next) => {
       })
       
       if (!response.ok) {
-        console.log(`[Router] Token验证失败，响应状态码: ${response.status}`)
         localStorage.removeItem('token')
         localStorage.removeItem('username')
         Object.assign(tokenValidationCache, { token: null, isValid: false, lastCheck: 0, cacheTimeout: 5 * 60 * 1000 })
         next('/login')
         return
       }
-      
-      const data = await response.json()
-      console.log(`[Router] Token验证成功，用户: ${data.username}`)
       
       // Token有效，更新缓存并继续访问
       Object.assign(tokenValidationCache, {

@@ -1,0 +1,20 @@
+/* 全局样式覆盖，确保下拉菜单显示在最上层 */
+.el-popper {
+  z-index: 9999 !important; /* 使用更高的 z-index 值 */
+}
+
+/* 确保下拉菜单的背景遮罩也有足够高的 z-index */
+.el-overlay {
+  z-index: 9998 !important;
+}
+
+/* 修复用户下拉菜单的样式 */
+.el-dropdown-menu {
+  z-index: 9999 !important;
+}
+
+/* 确保弹出层显示在最上层 */
+.el-select__popper,
+.el-dropdown__popper {
+  z-index: 9999 !important;
+} 

@@ -1,100 +1,41 @@
 <template>
-  <div class="training-visualization">
-    <!-- 侧边栏控制面板 -->
-    <div class="sidebar">
-      <!-- 连接状态 -->
-      <div class="connection-status" :class="{ connected: isConnected }">
-        <div class="status-indicator"></div>
-        <span>{{ isConnected ? '已连接' : '未连接' }}</span>
-        <button v-if="!isConnected" @click="handleConnect" class="connect-btn">连接</button>
-        <button v-else @click="disconnect" class="disconnect-btn">断开</button>
+  <div class="training-visualization-container">
+    <div class="glass-card">
+      <div class="card-header">
+        <span>训练过程可视化</span>
       </div>
 
-      <!-- 训练控制组件 -->
-      <TrainingControlWidget
-        :training-status="trainingStatus"
-        :is-connected="isConnected"
-        @pause-training="pauseTraining"
-        @resume-training="resumeTraining"
-        @step-training="stepTraining"
-        @stop-training="() => stopTraining(trainingData.iteration)"
-        @set-stop-iteration="setStopIteration"
+      <el-alert
+        v-if="!trainingStatus || !trainingStatus.is_active"
+        title="无活动训练任务"
+        type="info"
+        description="请先开始一个新的训练任务以启用实时可视化功能。"
+        show-icon
+        :closable="false"
+        class="mb-4 glass-alert"
       />
 
-      <!-- 渲染控制组件 -->
-      <RenderControlWidget
-        :render-params="renderParams"
-        @update-render-params="updateRenderParams"
-      />
-
-      <!-- 相机控制组件 -->
-      <CameraControlWidget
-        :camera-params="cameraParams"
-        @update-camera="updateCameraParams"
-        @reset-camera="resetCamera"
-        @switch-control-mode="switchControlMode"
-      />
-
-      <!-- 训练统计组件 -->
-      <TrainingStatsWidget
-        :training-data="trainingData"
-        :max-iterations="maxIterations"
-      />
-    </div>
-
-    <!-- 主要内容区域 -->
-    <div class="main-content">
-      <!-- 3D 渲染视图 -->
-      <div class="render-view">
-        <div class="view-header">
-          <h3>3D 渲染视图</h3>
-          <div class="view-controls">
-            <button @click="resetCamera" class="control-btn">
-              <Refresh />
-              重置视角
-            </button>
-            <button @click="toggleFullscreen" class="control-btn">
-              <FullScreen />
-              全屏
-            </button>
-            <button @click="saveScreenshot" class="control-btn">
-              <Camera />
-              截图
-            </button>
+      <div class="visualization-main-content" :class="{ 'disabled-overlay': !trainingStatus || !trainingStatus.is_active }">
+        <div class="canvas-container" ref="canvasContainerRef">
+          <canvas ref="canvasRef"></canvas>
+          <div v-if="isLoading" class="loading-overlay">
+            <div class="spinner"></div>
+            <span>渲染中...</span>
+          </div>
+          <div v-if="renderError" class="error-overlay">
+            <el-icon color="#F56C6C" size="24"><Warning /></el-icon>
+            <p>{{ renderError }}</p>
           </div>
         </div>
-        <div class="render-container" ref="renderContainerRef">
-          <!-- 渲染画布 -->
-          <canvas ref="renderCanvasRef" @mousedown="onMouseDown" @mousemove="onMouseMove" @mouseup="onMouseUp" @wheel="onWheel"></canvas>
-          
-          <!-- 加载状态 -->
-          <div v-if="isLoading" class="loading-overlay">
-            <div class="loading-spinner"></div>
-            <p>正在渲染...</p>
-          </div>
-          
-          <!-- 错误状态 -->
-          <div v-if="renderError" class="error-overlay">
-            <Warning />
-            <p>{{ renderError }}</p>
-            <button @click="() => requestRender()" class="retry-btn">重试</button>
-          </div>
-
-          <!-- 渲染信息覆盖层 -->
-          <div class="render-info" v-if="showRenderInfo">
-            <div class="info-item">
-              <span>FPS:</span>
-              <span>{{ renderFPS }}</span>
+        <div class="controls-panel glass-card-inner">
+           <div class="status-bar">
+             <span>状态:</span>
+             <div class="status-indicator" :class="{ 'connected': isConnected }"></div>
+             <span>{{ isConnected ? '已连接' : '未连接' }}</span>
+             <el-button v-if="!isConnected" @click="handleConnect" :disabled="!trainingStatus || !trainingStatus.is_active" size="small">连接</el-button>
+             <el-button v-else @click="disconnect" size="small">断开</el-button>
             </div>
-            <div class="info-item">
-              <span>分辨率:</span>
-              <span>{{ renderParams.resolution[0] }}x{{ renderParams.resolution[1] }}</span>
-            </div>
-            <div class="info-item">
-              <span>高斯数量:</span>
-              <span>{{ trainingData.num_gaussians || 0 }}</span>
-            </div>
-          </div>
+           <!-- Other controls -->
         </div>
       </div>
     </div>
@@ -102,7 +43,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onBeforeUnmount, computed } from 'vue';
+import { ref, reactive, onMounted, onBeforeUnmount, computed, onUnmounted, nextTick } from 'vue';
 import { useStore } from 'vuex';
 import { Refresh, FullScreen, Camera, Warning } from '@element-plus/icons-vue';
 import TrainingControlWidget from './widgets/TrainingControlWidget.vue';
@@ -115,10 +56,19 @@ import { useSplatviz } from '../composables/useSplatviz.js';
 
 import { addVectors, scaleVector, crossProduct } from '../utils/vector.js';
 
+const props = defineProps({
+  trainingStatus: {
+    type: Object,
+    default: () => ({ is_active: false })
+  }
+});
+
 // --- Refs and State ---
 const store = useStore();
 const renderCanvasRef = ref(null);
 const renderContainerRef = ref(null);
+const canvasContainerRef = ref(null);
+const canvasRef = ref(null);
 
 // 渲染参数
 const renderParams = ref({
@@ -393,26 +343,46 @@ function handleKeyDown(event) {
 
 
 // --- Lifecycle Hooks ---
-onMounted(() => {
-    const canvas = renderCanvasRef.value;
-    if (canvas) {
-        canvas.width = renderParams.value.resolution[0];
-        canvas.height = renderParams.value.resolution[1];
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#2c3e50';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#ecf0f1';
-        ctx.font = '16px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('等待连接...', canvas.width / 2, canvas.height / 2);
-    }
+onMounted(async () => {
+  // Wait for the next DOM update cycle to ensure refs are available
+  await nextTick();
 
+  if (canvasRef.value) {
+    // Canvas and its container should exist, set up event listeners.
+    const canvas = canvasRef.value;
+    canvas.addEventListener('mousedown', onMouseDown);
+    canvas.addEventListener('mousemove', onMouseMove);
+    canvas.addEventListener('mouseup', onMouseUp);
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('resize', handleResize);
     window.addEventListener('keydown', handleKeyDown);
-    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Initial setup
+    handleResize(); 
+  }
+
+  // If there's an active training task, automatically connect
+  if (props.trainingStatus && props.trainingStatus.is_active) {
+    handleConnect();
+  }
 });
 
 onBeforeUnmount(() => {
     disconnect();
+    window.removeEventListener('keydown', handleKeyDown);
+});
+
+onUnmounted(() => {
+    disconnect();
+    // Clean up listeners
+    if (canvasRef.value) {
+        const canvas = canvasRef.value;
+        canvas.removeEventListener('mousedown', onMouseDown);
+        canvas.removeEventListener('mousemove', onMouseMove);
+        canvas.removeEventListener('mouseup', onMouseUp);
+        canvas.removeEventListener('wheel', onWheel);
+    }
+    window.removeEventListener('resize', handleResize);
     window.removeEventListener('keydown', handleKeyDown);
 });
 
@@ -431,7 +401,115 @@ const toggleFullscreen = () => {
         document.exitFullscreen();
     }
 };
+
+function handleResize() {
+  if (canvasContainerRef.value && canvasRef.value) {
+    const container = canvasContainerRef.value;
+    const canvas = canvasRef.value;
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+    requestRender();
+  }
+}
  
 </script>
 
-<style scoped src="../assets/styles/Visualization.css"></style>
+<style scoped>
+.training-visualization-container {
+  /* This root element now has no styles that would interfere with el-tabs. */
+  height: 100%;
+}
+.glass-card {
+  background: transparent;
+  backdrop-filter: none;
+  border-radius: 0;
+  padding: 0; /* No padding on the main wrapper */
+  box-sizing: border-box;
+  border: none;
+  color: #303133;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.glass-card-inner {
+  background: rgba(0, 0, 0, 0.04); /* Subtle inner background */
+  border-radius: 10px;
+  padding: 15px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1); /* Darker, subtle border */
+  color: inherit;
+}
+
+.card-header {
+  font-size: 1.2rem;
+  font-weight: 600;
+  padding-bottom: 15px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1); /* Darker, subtle border */
+  color: inherit;
+}
+
+.visualization-main-content {
+  display: flex;
+  gap: 20px;
+  flex-grow: 1; /* Allow this to fill available space */
+  min-height: 0; /* Fix flexbox overflow issue */
+}
+.canvas-container {
+  flex-grow: 1;
+  position: relative;
+  background-color: #000;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.1); /* Lighter, subtle border */
+}
+.controls-panel {
+  width: 300px;
+  flex-shrink: 0;
+}
+
+.loading-overlay, .error-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: #fff;
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+.status-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #F56C6C; /* disconnected */
+  transition: background-color 0.3s;
+}
+.status-indicator.connected {
+  background-color: #67C23A; /* connected */
+}
+
+/* Re-using alert style from other components */
+.glass-alert {
+  background: rgba(240, 249, 255, 0.8);
+  color: #333;
+  border: 1px solid rgba(186, 231, 255, 0.9);
+}
+:deep(.glass-alert .el-alert__title) {
+    color: #303133;
+}
+:deep(.glass-alert .el-alert__description) {
+    color: #606266;
+}
+</style>

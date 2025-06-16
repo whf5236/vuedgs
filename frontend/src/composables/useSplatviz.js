@@ -1,5 +1,5 @@
-import { reactive, toRefs, watch, computed } from 'vue';
-import wsClient from '../utils/WebSocketClient'; // 导入全局 wsClient
+import { reactive, toRefs, watch, computed, ref } from 'vue';
+import splatvizWsClient from '@/utils/SplatvizWebSocketClient'; // 导入专用的Splatviz客户端
 import { multiplyMatrices, to4x4, flattenMatrix, calculateProjectionMatrix } from '../utils/matrix';
 import { normalizeVector, crossProduct, subtractVectors } from '../utils/vector';
 
@@ -29,32 +29,23 @@ function createViewMatrix(position, forward, up) {
 
 
 export function useSplatviz(cameraParams, renderParams, trainingStatus, onImageRendered) {
+    const isConnected = ref(false); // Use a ref for state management
     const state = reactive({
-        isConnected: computed(() => wsClient.isConnected), // 从 wsClient 获取连接状态
-        pendingStats: null,
         isLoading: false,
         renderError: null,
     });
 
     function sendSplatvizMessage(message) {
-        // 使用 wsClient 发送消息
-        if (state.isConnected) {
-            const success = wsClient.send(message);
-            if (!success) {
-                console.error('发送消息到 SplatvizNetwork 失败');
-                state.renderError = '发送渲染请求失败';
-                state.isLoading = false;
-            }
-        } else {
-            console.error('WebSocket 连接未就绪');
-            state.renderError = 'SplatvizNetwork 未连接';
-            state.isLoading = false;
+        if (!splatvizWsClient) {
+            console.warn('Splatviz WebSocket client not initialized.');
+            return;
         }
+        splatvizWsClient.send(message);
     }
     
     // 核心渲染请求
     function requestRender(quality = 'high', isPredictive = false, view = null) {
-        if (!state.isConnected) return;
+        if (!isConnected.value) return;
 
         state.isLoading = !isPredictive; // 预测性渲染不显示加载动画
         state.renderError = null;
@@ -105,7 +96,7 @@ export function useSplatviz(cameraParams, renderParams, trainingStatus, onImageR
     }
     
     function handleMessage(message) {
-        // wsClient 会自动解析JSON，我们这里假设收到的是 Blob
+        // splatvizWsClient 会自动解析JSON，我们这里假设收到的是 Blob
         const messageData = message.data; // 从包装对象中获取Blob数据
         if (messageData instanceof Blob) {
             if (state.pendingStats) {
@@ -134,39 +125,46 @@ export function useSplatviz(cameraParams, renderParams, trainingStatus, onImageR
     }
     
     async function connect(host, port, userId) {
-        if (wsClient.isConnected) {
+        if (isConnected.value) {
             console.log("WebSocket 已连接，无需重复连接。");
             requestRender(); // 如果已经连接，直接渲染
             return;
         }
 
         try {
-            // 使用 wsClient 连接，并传递用户名
-            await wsClient.connect(`ws://${host}:${port}`, userId);
+            // Register callbacks BEFORE connecting
+            splatvizWsClient.onOpen(() => {
+                isConnected.value = true;
+            });
+            splatvizWsClient.onClose(() => {
+                isConnected.value = false;
+            });
+            
+            await splatvizWsClient.connect(`ws://${host}:${port}`, userId);
             
             // 注册特定于此模块的消息处理器
-            // 注意: wsClient需要支持二进制(Blob)和文本(JSON)消息的区分处理
+            // 注意: splatvizWsClient需要支持二进制(Blob)和文本(JSON)消息的区分处理
             // 我们假设 onMessage 只处理我们关心的特定类型
-            wsClient.onMessage('splat_stats', handleStatsMessage); 
-            wsClient.onMessage('splat_image', handleMessage); // 假设图片消息类型为'splat_image'
+            splatvizWsClient.onMessage('splat_stats', handleStatsMessage); 
+            splatvizWsClient.onMessage('splat_image', handleMessage); // 假设图片消息类型为'splat_image'
 
             console.log(`已连接到SplatvizNetwork服务器 ws://${host}:${port}`);
             requestRender(); // 初次连接成功后渲染
 
         } catch (error) {
+            isConnected.value = false;
             state.renderError = `连接SplatvizNetwork服务器失败: ${error.message}`;
             console.error('SplatvizNetwork连接错误:', error);
         }
     }
 
     function disconnect() {
-        // 不再直接关闭ws，而是注销消息处理器
-        wsClient.offMessage('splat_stats');
-        wsClient.offMessage('splat_image');
-        console.log("已从 SplatvizNetwork 注销消息处理器。");
-        // 连接的断开由应用全局管理，这里不再处理
+        if (splatvizWsClient) {
+            splatvizWsClient.disconnect(); // This will trigger the onClose callback
+        }
+        console.log("已从 SplatvizNetwork断开连接。");
     }
-    
+
     // 公开的训练控制方法
     const sendCommand = (command) => sendSplatvizMessage(command);
     const pauseTraining = () => sendCommand({ train: false });
@@ -175,6 +173,7 @@ export function useSplatviz(cameraParams, renderParams, trainingStatus, onImageR
     const stopTraining = (iteration) => sendCommand({ stop_at_value: iteration });
 
     return {
+        isConnected, // Return the ref directly
         ...toRefs(state),
         connect,
         disconnect,

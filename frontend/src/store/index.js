@@ -53,18 +53,23 @@ function saveTrainingState(state) {
   }
 }
 
+// 初始状态
+const initialState = {
+  token: localStorage.getItem('token') || null,
+  username: localStorage.getItem('username') || null,
+  user: localStorage.getItem('username') ? { username: localStorage.getItem('username') } : null, // 从localStorage恢复user对象
+  status: '',
+  // 训练状态管理
+  training: loadTrainingState(),
+  // WebSocket client removed
+}
+
 export default createStore({
-  state: {
-    token: localStorage.getItem('token') || null,
-    username: localStorage.getItem('username') || null,
-    // 训练状态管理
-    training: loadTrainingState(),
-    // WebSocket client removed
-  },
+  state: initialState,
   getters: {
     isAuthenticated: state => !!state.token,
     authStatus: state => state.status,
-    user: state => state.username ? { username: state.username } : null,
+    user: state => state.user,
     // 训练相关 getters
     trainingConnected: state => state.training.connected,
     trainingStats: state => state.training.stats,
@@ -82,6 +87,7 @@ export default createStore({
       state.status = 'success'
       state.token = token
       state.user = user
+      state.username = user.username
     },
     AUTH_ERROR(state) {
       state.status = 'error'
@@ -147,6 +153,7 @@ export default createStore({
     },
     setUsername(state, username) {
       state.username = username
+      state.user = { username: username }
       localStorage.setItem('username', username)
     },
     // WebSocket initialization removed
@@ -190,6 +197,7 @@ export default createStore({
         // 使用HTTP API进行注册
         response = await axios.post(`${API_URL}/register`, user)
         
+        commit('AUTH_SUCCESS', { token: null, user: null });
         return response
       } catch (err) {
         commit('AUTH_ERROR')
@@ -205,7 +213,7 @@ export default createStore({
         // 清理localStorage
         localStorage.removeItem('token')
         localStorage.removeItem('username')
-        localStorage.removeItem('user')
+        localStorage.removeItem('trainingState')
         
         // 清理axios默认headers
         delete axios.defaults.headers.common['Authorization']

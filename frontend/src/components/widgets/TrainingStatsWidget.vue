@@ -294,8 +294,6 @@ export default {
             if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
               if (!this.lossChart) {
                 this.initLossChart()
-              } else if (this.lossChart.canvas) {
-                this.lossChart.resize()
               }
             }
           })
@@ -314,8 +312,6 @@ export default {
             if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
               if (!this.gaussianChart) {
                 this.initGaussianChart()
-              } else if (this.gaussianChart.canvas) {
-                this.gaussianChart.resize()
               }
             }
           })
@@ -376,20 +372,6 @@ export default {
         return
       }
       
-      // 检查画布尺寸
-      const width = this.$refs.lossCanvas.offsetWidth
-      const height = this.$refs.lossCanvas.offsetHeight
-      
-      // 如果画布尺寸为0，不再尝试递归初始化，让ResizeObserver处理
-      if (width === 0 || height === 0) {
-        console.warn('Loss canvas has zero dimensions, waiting for resize')
-        return
-      }
-      
-      // 设置画布尺寸以匹配其CSS尺寸
-      this.$refs.lossCanvas.width = width
-      this.$refs.lossCanvas.height = height
-      
       this.lossChart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -447,20 +429,6 @@ export default {
         console.warn('Failed to get 2d context from gaussianCanvas')
         return
       }
-      
-      // 检查画布尺寸
-      const width = this.$refs.gaussianCanvas.offsetWidth
-      const height = this.$refs.gaussianCanvas.offsetHeight
-      
-      // 如果画布尺寸为0，不再尝试递归初始化，让ResizeObserver处理
-      if (width === 0 || height === 0) {
-        console.warn('Gaussian canvas has zero dimensions, waiting for resize')
-        return
-      }
-      
-      // 设置画布尺寸以匹配其CSS尺寸
-      this.$refs.gaussianCanvas.width = width
-      this.$refs.gaussianCanvas.height = height
       
       this.gaussianChart = new Chart(ctx, {
         type: 'line',
@@ -783,12 +751,12 @@ export default {
   border-radius: 6px;
   padding: 8px;
 }
-
+/*
 .chart-container canvas {
   width: 100% !important;
   height: 100% !important;
 }
-
+*/
 .detailed-stats {
   margin-bottom: 16px;
 }

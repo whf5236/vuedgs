@@ -3,7 +3,7 @@
     <el-container>
     
       <el-main class="dashboard-main">
-        <el-card class="dashboard-card">
+        <div class="dashboard-container">
           <el-tabs
             v-model="activeTab"
             type="card"
@@ -19,7 +19,6 @@
               </template>
               <div class="tab-content">
                 <el-row :gutter="20">
-                  <!-- File Upload Column -->
                   <el-col :xs="24" :sm="24" :md="12">
                     <FileUploader
                       @upload-complete="handleUploadComplete"
@@ -60,7 +59,7 @@
                 </div>
               </template>
               <div class="tab-content">
-                <PointCloudProcessor />
+                <PointCloudProcessor ref="pointCloudProcessor" />
               </div>
             </el-tab-pane>
 
@@ -100,7 +99,7 @@
               </div>
             </el-tab-pane>
           </el-tabs>
-        </el-card>
+        </div>
       </el-main>
     </el-container>
   </div>
@@ -180,7 +179,8 @@ export default {
   data() {
     return {
       selectedFile: null,
-      activeTab: 'file-upload'
+      activeTab: 'file-upload',
+      isRefreshing: false,
     }
   },
   computed: {
@@ -196,9 +196,18 @@ export default {
       return this.username.charAt(0).toUpperCase()
     }
   },
+  created() {
+    // 确保在组件创建时就设置正确的默认标签页
+    this.activeTab = 'file-upload';
+  },
   mounted() {
     // 监听点云处理完成事件，自动切换到训练标签页
     eventBus.on('point-cloud-processed', this.handlePointCloudProcessed);
+    
+    // 确保在组件挂载后再次检查默认标签页
+    this.$nextTick(() => {
+      this.activeTab = 'file-upload';
+    });
   },
   beforeUnmount() {
     // 移除事件监听器
@@ -210,23 +219,32 @@ export default {
       this.$router.push('/login')
     },
 
-    handleTabClick(tab) {
-      // 如果切换到文件上传标签页，刷新文件列表
+    async handleTabClick(tab) {
       if (tab.props.name === 'file-upload' && this.$refs.fileListComponent) {
-        this.$refs.fileListComponent.refreshData();
+        this.isRefreshing = true;
+        await this.$refs.fileListComponent.refreshData();
+        setTimeout(() => {
+          this.isRefreshing = false;
+        }, 100);
       }
     },
 
     handleUploadComplete(data) {
-      // Refresh the file list when upload is complete
       if (this.$refs.fileListComponent) {
         this.$refs.fileListComponent.refreshData();
       }
-      // If the upload response contains file info, select it.
+
       if (data && data.file) {
         this.selectedFile = data.file;
-        // Switch to the renderer tab
-        this.activeTab = 'gaussian-splatting';
+      }
+
+      // If a folder or video was uploaded (after frame extraction),
+      // we can automatically load it in the point cloud processor without switching tabs.
+      if (data && data.folder_name) {
+        console.log(`Upload complete, preparing to load folder in PointCloudProcessor: ${data.folder_name}`);
+        // Use eventBus to tell PointCloudProcessor to load the folder.
+        // This is more robust than using refs, as the component might not be active.
+        eventBus.emit('load-folder-in-processor', data.folder_name);
       }
     },
 
@@ -242,84 +260,141 @@ export default {
     },
 
     handleFolderSelected(folder) {
-      console.log('Folder selected:', folder);
-
-      // 如果文件夹包含图片，可以考虑自动选择第一张图片
-      if (folder.has_images && folder.image_count > 0) {
-        // 这里可以添加逻辑，从选定的文件夹中获取并显示第一张图片
-        // 例如，可以通过API获取文件夹中的图片列表
-        this.loadFolderImages(folder);
-      }
-    },
-
-    async loadFolderImages(folder) {
-      // 检查用户是否已登录
-      if (!this.$store.getters.isAuthenticated) {
-        this.$message.error('请先登录');
-        return;
-      }
-      
-      const username = this.$store.getters.user?.username;
-
-      try {
-        let response;
-        
-        // 尝试WebSocket获取文件列表
-        try {
-          if (!wsClient.isConnected) {
-            await wsClient.connect('ws://localhost:6010', username);
-          }
-          response = await wsClient.getFiles(username);
-        } catch (wsError) {
-          console.warn('WebSocket获取文件失败，回退到HTTP:', wsError);
-          // HTTP回退
-          const httpResponse = await axios.get(`http://localhost:5000/api/files/${username}`);
-          response = { data: httpResponse.data };
+      if (this.isRefreshing) return;
+      this.activeTab = 'point-cloud'
+      // 确保PointCloudProcessor组件已挂载并有loadFolderByName方法
+      this.$nextTick(() => {
+        // 由于使用了ref，我们需要确保组件已经渲染
+        if (this.$refs.pointCloudProcessor) {
+          this.$refs.pointCloudProcessor.loadFolderByName(folder.name)
+        } else {
+          // An event bus or another state management approach would be better here.
+          console.warn('PointCloudProcessor component not immediately available.')
         }
-        
-        const files = response.data.files || [];
-
-        // 过滤出属于该文件夹的图片文件
-        const folderImages = files.filter(file =>
-          file.folder === folder.name &&
-          ['png', 'jpg', 'jpeg', 'gif'].includes(file.type.toLowerCase())
-        );
-
-        // 如果有图片，选择第一张
-        if (folderImages.length > 0) {
-          this.handleFileSelected(folderImages[0]);
-        }
-      } catch (err) {
-        console.error('Error loading folder images:', err);
-      }
+      })
     },
 
     handleProcessFolder(folderName) {
-      // 切换到点云处理标签页
-      this.activeTab = 'point-cloud';
-
-      // 延迟一下，确保点云处理组件已经加载
-      setTimeout(() => {
-        // 触发点云处理组件的处理方法
-        eventBus.emit('process-folder', folderName);
-      }, 500);
+      this.activeTab = 'point-cloud'
+      this.$nextTick(() => {
+        const pointCloudProcessorInstance = this.$refs.pointCloudProcessor;
+        if (pointCloudProcessorInstance && pointCloudProcessorInstance.loadFolderByName) {
+          pointCloudProcessorInstance.loadFolderByName(folderName)
+        } else {
+          eventBus.emit('load-folder-in-processor', folderName)
+        }
+      })
     },
 
     // 处理点云处理完成事件
-    handlePointCloudProcessed(processedData) {
-      console.log('Dashboard: 点云处理完成，切换到训练标签页', processedData);
-
-      // 刷新文件列表，确保显示最新的处理结果
-      this.handleRefreshFiles();
-
-      // 延迟一下，确保点云处理完全结束
-      setTimeout(() => {
-        // 切换到训练标签页
-        this.activeTab = 'training';
-      }, 1000);
+    handlePointCloudProcessed() {
+      this.activeTab = 'training';
     }
   }
 }
 </script>
 
-<style scoped src="../assets/css/Dashboard.css"></style>
+<style scoped>
+.dashboard {
+  color: #fff;
+}
+
+.dashboard-main {
+  padding: 0;
+}
+
+.dashboard-container {
+  background: rgba(30, 41, 59, 0.5); /* Semi-transparent dark background */
+  backdrop-filter: blur(10px); /* Frosted glass effect */
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  min-height: calc(100vh - 120px);
+}
+
+.tab-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  font-size: 1rem;
+  color: #e2e8f0; /* Lighter text for tabs */
+}
+
+.tab-content {
+  background: rgba(15, 23, 42, 0.6); /* Slightly darker for content */
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: -16px; /* Overlap with tabs */
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.file-list-section {
+  margin-top: 20px;
+}
+
+/* Element Plus overrides for a cohesive look */
+:deep(.el-tabs__header) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  margin-bottom: 20px;
+}
+
+:deep(.el-tabs__nav) {
+  border: none !important;
+}
+
+:deep(.el-tabs__item) {
+  border: none !important;
+  border-radius: 8px 8px 0 0;
+  background-color: transparent !important;
+  transition: all 0.3s ease;
+  margin-right: 4px;
+}
+
+:deep(.el-tabs__item.is-active) {
+  background-color: rgba(15, 23, 42, 0.6) !important;
+  color: #fff !important;
+  border-bottom: 2px solid #3b82f6 !important; /* Active tab indicator */
+}
+
+:deep(.el-tabs__item:hover) {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #fff !important;
+}
+
+:deep(.el-card),
+:deep(.el-table) {
+  background-color: transparent !important;
+  color: #e2e8f0 !important;
+  border: none !important;
+}
+
+:deep(.el-card__header),
+:deep(.el-table__header-wrapper th) {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #fff !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+:deep(.el-table__row) {
+  background-color: transparent !important;
+}
+
+:deep(.el-table__row:hover) {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
+:deep(.el-button) {
+  --el-button-text-color: #e2e8f0;
+  --el-button-bg-color: rgba(59, 130, 246, 0.5);
+  --el-button-border-color: rgba(59, 130, 246, 0.7);
+}
+
+:deep(.el-button:hover) {
+  --el-button-hover-text-color: #fff;
+  --el-button-hover-bg-color: rgba(59, 130, 246, 0.7);
+  --el-button-hover-border-color: #3b82f6;
+}
+</style>
