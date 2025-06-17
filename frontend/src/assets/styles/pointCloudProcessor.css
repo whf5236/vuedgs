@@ -21,7 +21,13 @@
   padding: 20px;
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
-
+.btn-icon-fixed {
+  max-width: 32px;
+  max-height: 32px;
+  padding: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1;
+}
 .card-header {
   display: flex;
   align-items: center;

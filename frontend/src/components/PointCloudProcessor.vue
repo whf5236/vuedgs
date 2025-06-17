@@ -223,7 +223,9 @@
                 <td>{{ result.processing_time ? formatTime(result.processing_time) : 'N/A' }}</td>
                 <td>{{ result.timestamp ? formatDate(result.timestamp) : 'Unknown' }}</td>
                 <td>
-                  <button class="btn btn-sm btn-outline-primary me-1" @click="viewResultDetails(result)">
+                  <button class="btn btn-sm btn-outline-primary me-1" 
+                          style="max-width: 32px; max-height: 32px;" 
+                          @click="viewResultDetails(result)">
                     <i class="fas fa-eye"></i>
                   </button>
                 </td>
@@ -465,21 +467,10 @@ export default {
 
         // 获取任务状态
         let response;
-
-        // 尝试WebSocket获取点云任务状态
-        try {
-          if (!wsClient.isConnected) {
-            await wsClient.connect('ws://localhost:6009', username);
-          }
-          response = await wsClient.getPointCloudStatus(taskId, username);
-        } catch (wsError) {
-          const httpResponse = await axios.get(
-            `http://localhost:5000/api/point-cloud/status/${taskId}?username=${username}`
-          );
-          response = { data: httpResponse.data };
-        }
-
-        // 更新任务状态
+        const httpResponse = await axios.get(
+          `http://localhost:5000/api/point-cloud/status/${taskId}?username=${username}`
+        );
+        response = { data: httpResponse.data };
         this.currentTask = {
           ...this.currentTask,
           ...response.data
@@ -487,9 +478,8 @@ export default {
 
         // 如果任务已完成或失败，停止轮询
         if (response.data.status === 'completed' || response.data.status === 'failed' || response.data.status === 'cancelled') {
-          // 停止轮询
+
           this.clearTaskCheckInterval();
-          // 刷新结果列表
           this.fetchResults();
           // 通知其他组件刷新文件夹列表
           eventBus.emit('refresh-folders');
@@ -510,7 +500,7 @@ export default {
         this.currentTask = {
           ...this.currentTask,
           status: 'failed',
-          message: 'Failed to get task status. Please try again.'
+          message: '获取任务状态失败，请重试。'
         };
       }
     }, 2000); // 每2秒轮询一次
@@ -543,12 +533,12 @@ export default {
       }
 
       // 调用后端 API 取消任务
-      const response = await axios.post(
+      await axios.post(
         `http://localhost:5000/api/point-cloud/cancel/${this.currentTask.task_id}?username=${username}`
       );
       // 更新任务状态
       this.currentTask.status = 'cancelled';
-      this.currentTask.message = 'Task cancelled by user';
+      this.currentTask.message = '任务被用户取消';
       // 停止轮询
       this.clearTaskCheckInterval();
       // 刷新结果列表

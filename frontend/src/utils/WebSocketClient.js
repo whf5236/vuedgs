@@ -23,18 +23,17 @@ class WebSocketClient {
       });
 
       this.socket.on('connect', () => {
-        console.log('Socket.IO 连接成功, ID:', this.socket.id);
         this.registerDefaultHandlers();
           resolve();
       });
         
       this.socket.on('connect_error', (error) => {
-        console.error('Socket.IO 连接错误:', error);
+        console.error('Socket.IO 连接错误:', error);  // 这里应该显示错误信息
         reject(error);
       });
 
       this.socket.on('disconnect', (reason) => {
-        console.log('Socket.IO 连接断开:', reason);
+        console.log('Socket.IO 连接断开:', reason);  // 这里应该显示断开原因
       });
     });
   }
@@ -66,16 +65,14 @@ class WebSocketClient {
         return reject(new Error('Socket.IO 未连接'));
       }
       
-      this.socket.timeout(timeout).emit(eventName, data, (err, response) => {
-        if (err) {
-          return reject(new Error('请求超时或无响应'));
-        }
-        if (response && response.status === 'success') {
+      this.socket.timeout(timeout).emit(eventName, data, (response) => { 
+        console.log(`收到${eventName}响应:`, response);
+        
+        if (response) {
           resolve(response);
-      } else {
-          const errorMessage = response ? response.message : '请求失败，未收到有效响应。';
-          reject(new Error(errorMessage));
-      }
+        } else {
+          reject(new Error('请求失败，未收到任何响应。'));
+        }
       });
     });
   }

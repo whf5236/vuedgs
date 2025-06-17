@@ -42,7 +42,7 @@
           <div class="d-grid">
             <button type="submit" class="btn btn-primary btn-lg" :disabled="loading">
               <span v-if="loading" class="spinner-border spinner-border-sm me-2"></span>
-              {{ loading ? 'Logging in...' : 'Login' }}
+              {{ loading ? 'Logging in...' : '登录' }}
             </button>
           </div>
         </form>

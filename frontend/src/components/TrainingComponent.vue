@@ -512,7 +512,7 @@
           :disabled="!selectedFolder || isProcessing"
         >
           <i class="fas" :class="isProcessing ? 'fa-spinner fa-spin' : 'fa-play'"></i>
-          {{ isProcessing ? 'Starting Training...' : '开始训练' }}
+          {{ isProcessing ? '正在训练' : '开始训练' }}
         </button>
 
         <button
@@ -544,10 +544,10 @@
 
         <div class="alert" 
             :class="{
-               'alert-info': currentTask.status === 'processing' || currentTask.status === 'running',
-          'alert-success': currentTask.status === 'completed',
-          'alert-danger': currentTask.status === 'failed',
-          'alert-warning': currentTask.status === 'cancelled'
+              'alert-info': currentTask.status === 'processing' || currentTask.status === 'running',
+              'alert-success': currentTask.status === 'completed',
+              'alert-danger': currentTask.status === 'failed',
+              'alert-warning': currentTask.status === 'cancelled'
              }"
              :style="{ fontSize: '1.05em', padding: '12px' }"
         >
@@ -577,7 +577,7 @@
 
         <div v-if="currentTask.status === 'failed'" class="mt-3">
           <div v-if="currentTask.error" class="alert alert-danger mb-3">
-            <strong>Error:</strong> {{ currentTask.error }}
+            <strong>错误:</strong> {{ currentTask.error }}
           </div>
           <button class="btn btn-primary control-btn primary-btn" @click="resetTaskState">
             <i class="fas fa-redo me-2"></i> 再次尝试
@@ -723,7 +723,6 @@ export default {
       }
     },
     currentTask(newTask, oldTask) {
-      // 当任务开始运行时启动轮询，任务结束时停止轮询
       if (newTask && newTask.task_id && (newTask.status === 'running' || newTask.status === 'processing')) {
         if (!this.taskCheckInterval) {
           this.startTaskStatusPolling(newTask.task_id);
@@ -753,7 +752,6 @@ export default {
     } else {
       console.log('[TrainingComponent] Username not available on mount, waiting for it to be set in store.');
     }
-    // The watcher will handle cases where the username is set after mount.
     eventBus.on('point-cloud-processed', this.handlePointCloudProcessed);
 
     this.fetchTrainingResults();
@@ -815,15 +813,24 @@ export default {
 
     async fetchResults() {
       this.loadingResults = true;
-      try {
-        const username = this.getUsername();
-        const response = await TrainingService.getTrainingResults(username);
-        this.results = response.results || [];
-      } catch (error) {
-        this.$message.error('Failed to load training history.');
-      } finally {
+      const username = this.getUsername();
+      if (!username) {
         this.loadingResults = false;
+        return;
       }
+      
+      TrainingService.getTrainingResults(username)
+        .then(response => {
+          this.results = response.results || [];
+        })
+        .catch(error => {
+          console.error('获取训练结果失败:', error);
+          ElMessage.error('无法加载训练历史记录');
+          this.results = [];
+        })
+        .finally(() => {
+          this.loadingResults = false;
+        });
     },
 
     selectFolder(folder) {
@@ -853,7 +860,14 @@ export default {
     async startTraining() {
       const folderValidation = TrainingUtils.validateFolderSelection(this.selectedFolderDetails);
       if (!folderValidation.isValid) {
-        this.$message.error(folderValidation.error);
+        ElNotification({
+          title: '操作失败',
+          message: folderValidation.error,
+          type: 'error',
+          position: 'top-right',
+          duration: 2000,
+          showClose: true
+        });
         return;
       }
 
@@ -866,7 +880,14 @@ export default {
 
         const paramValidation = TrainingParams.validateParams(this.trainingParams);
         if (!paramValidation.isValid) {
-          this.$message.error('参数验证失败: ' + paramValidation.errors.join(', '));
+          ElNotification({
+            title: '操作失败',
+            message: '参数验证失败: ' + paramValidation.errors.join(', '),
+            type: 'error',
+            position: 'top-right',
+            duration: 2000,
+            showClose: true
+          });
           this.isProcessing = false; // 终止处理
           return;
         }
@@ -882,8 +903,8 @@ export default {
         const taskData = {
           username: username,
           source_path: sourcePath,
-          websocket_port: 6009, // 指定SplatvizNetwork WebSocket服务器端口
-          websocket_host: 'localhost', // 指定SplatvizNetwork WebSocket服务器主机
+          websocket_port: 6009, 
+          websocket_host: 'localhost', 
           params: cleanParams
         };
 
@@ -891,7 +912,14 @@ export default {
         this.handleStartTrainingResponse(response);
       } catch (error) {
         this.httpError = `Failed to start training: ${error.message}`;
-        this.$message.error(this.httpError);
+        ElNotification({
+          title: '操作失败',
+          message: this.httpError,
+          type: 'error',
+          position: 'top-right',
+          duration: 2000,
+          showClose: true
+        });
         this.$store.dispatch('setTrainingTask', { status: 'failed', message: this.httpError, error: this.httpError });
       } finally {
         this.isProcessing = false;
@@ -900,20 +928,10 @@ export default {
 
     handleStartTrainingResponse(data) {
       if (data && data.task_id) {
-        // 显示WebSocket连接信息
-        if (data.websocket) {
-          const wsUrl = `ws://${data.websocket.host}:${data.websocket.port}`;
-          ElNotification({
-            title: '训练任务已启动',
-            message: `可视化WebSocket服务器: ${wsUrl}`,
-            type: 'success',
-            duration: 10000
-          });
-        }
-        
+
         const taskData = {
           task_id: data.task_id,
-          status: data.status || 'running', // Default to 'running' if not provided
+          status: data.status || 'running', 
           progress: 0,
           message: data.message || 'Training started...',
           output_logs: [],
@@ -921,7 +939,7 @@ export default {
           folder_name: this.selectedFolder,
           model_path: data.model_path,
           visualization_url: data.visualization ? `http://${data.visualization.host}:${data.visualization.port}` : null,
-          websocket: data.websocket || { // 保存WebSocket配置
+          websocket: data.websocket || { 
             host: 'localhost',
             port: 6009
           }
@@ -935,9 +953,8 @@ export default {
           customClass: 'custom-notification',
           duration: 3000
         });
-        // Polling will be started by the watcher
       } else {
-        this.$message.error('Failed to start training: Invalid response from server.');
+        this.$message.error('训练失败: 服务器响应无效。');
         this.$store.dispatch('setTrainingTask', { status: 'failed', message: 'Invalid server response on start.' });
       }
     },
@@ -950,14 +967,12 @@ export default {
           task_id: taskId
         });
       } else {
-        console.warn('WebSocket未连接，无法注册任务监听');
         // 如果WebSocket未连接，回退到HTTP轮询实现
         this.fallbackToHttpPolling(taskId);
       }
     },
     
     fallbackToHttpPolling(taskId) {
-      console.log('回退到HTTP轮询方式获取任务状态');
       if (this.taskCheckInterval) {
         clearInterval(this.taskCheckInterval);
       }
@@ -1060,8 +1075,15 @@ export default {
     },
     
     handleCancelTaskResponse(data) {
-      console.log('Cancel task response:', data);
-      this.$message.info(data.message || 'Task cancellation requested.');
+      ElNotification({
+        title: '任务取消',
+        message: data.message || '任务取消请求已成功发送',
+        type: 'info',
+        position: 'top-right',
+        duration: 3000,
+        showClose: true,
+        customClass: 'custom-notification'
+      });
       
       // Update task state in Vuex to 'cancelled'
       // The backend should eventually confirm this state via polling if cancellation is async
@@ -1086,30 +1108,23 @@ export default {
     },
 
     resetTaskState() {
-      console.log('Resetting task state in TrainingComponent');
       this.$store.dispatch('clearTrainingTask'); // Clears the task from Vuex
       this.selectedFolder = null;
       this.selectedFolderDetails = null;
       this.isProcessing = false;
       this.httpError = null;
       this.clearTaskCheckInterval(); // Ensure polling stops
-      this.$message.info('Ready to start a new training task.');
+      this.$message.info('准备开始新的训练任务。');
     },
 
     checkAndCleanInvalidState() {
-      console.log('Checking and cleaning invalid state...');
       const task = this.$store.getters.trainingCurrentTask;
       if (task && task.task_id && (task.status === 'running' || task.status === 'processing')) {
-        // If there's a task marked as running in Vuex, verify its actual status with the backend.
-        // This handles cases where the browser was closed and reopened.
-        console.log(`Found potentially active task in store: ${task.task_id}. Verifying with backend.`);
+         // 这里应该显示任务ID
         this.verifyTaskStatusWithBackend(task.task_id);
       } else if (task && (task.status === 'cancelled' || task.status === 'failed' || task.status === 'completed')) {
-        // If task is in a terminal state in Vuex but UI might not reflect it, ensure it's reset for new task.
-        // This is more of a safeguard. `resetTaskState` should handle most UI resets.
-        console.log(`Task ${task.task_id} is in terminal state: ${task.status}. Ensuring UI is ready for new task.`);
-          }
-      // localStorage cleanup can be done here if needed, but Vuex is the primary state source now.
+        this.resetTaskState();
+      }
     },
 
     async verifyTaskStatusWithBackend(taskId) {
@@ -1118,7 +1133,6 @@ export default {
         const backendTaskStatus = await TrainingService.getTrainingStatus(username, taskId);
 
         if (backendTaskStatus && (backendTaskStatus.status === 'running' || backendTaskStatus.status === 'processing')) {
-          console.log(`Task ${taskId} confirmed active by backend. Restoring and polling.`);
           this.$store.dispatch('setTrainingTask', { ...this.currentTask, ...backendTaskStatus });
           // Polling will be started/managed by the watcher
         } else {
@@ -1138,18 +1152,32 @@ export default {
 
       this.clearTaskCheckInterval();
       this.resetTaskState(); // This now clears Vuex and resets local component state
-      this.$message.success('All training states have been reset.');
+      ElNotification({
+          title: '操作成功',
+          message: '所有训练状态已重置',
+          type: 'success',
+          position: 'top-right',
+          customClass: 'custom-notification',
+          duration: 2000
+        });
       this.fetchFolders(); // Refresh folder list
       this.fetchResults(); // Refresh history
     },
 
     handlePointCloudProcessed(processedData) {
-      console.log('Point cloud processed, selecting folder:', processedData);
+
       this.fetchFolders().then(() => {
         const folder = this.folders.find(f => f.output_folder === processedData.output_folder);
         if (folder) {
           this.selectFolder(folder);
-          this.$message.success(`Automatically selected newly processed folder: ${folder.folder_name || folder.name}`);
+          ElNotification({
+            title: '操作成功',
+            message: `自动选择新处理的文件夹: ${folder.folder_name || folder.name}`,
+            type: 'success',
+            position: 'top-right',
+            duration: 2000,
+            showClose: true
+          });
         }
       });
     },
@@ -1173,12 +1201,8 @@ export default {
     },
 
     handlePointCloudResultsResponse(responseData) {
-      console.log('[TrainingComponent] Handling point cloud results response. Received:', JSON.parse(JSON.stringify(responseData)));
       const data = responseData.data || responseData;
-      console.log('[TrainingComponent] Extracted data object:', JSON.parse(JSON.stringify(data)));
-
       if (data && data.results && Array.isArray(data.results)) {
-        console.log('[TrainingComponent] data.results is a valid array:', JSON.parse(JSON.stringify(data.results)));
         this.folders = data.results || [];
         if (this.folders.length === 0) {
           console.warn('No completed point cloud folders found from API.');
@@ -1209,26 +1233,62 @@ export default {
 
     async deleteResult(result) {
       try {
-        console.log("即将删除的训练结果:", result);
-        const username = this.$store.state.username;
         const folderName = result.folder_name;
 
-        // 使用 emitWithAck 等待服务器响应，但不在这里刷新
-        const response = await wsClient.emitWithAck('delete_folder', {
-          username: username,
-          folderName: folderName,
-          folderType: 'models'
-        }, 30000); // 30秒超时
-
-        if (response.status === 'success') {
-          this.$message.success(response.message || '删除请求已成功发送');
-        } else {
-          this.$message.error(response.message || '删除失败');
+        // 检查WebSocket连接
+        if (!wsClient.isConnected()) {
+          ElNotification({
+            title: '操作失败',
+            message: 'WebSocket未连接，请刷新页面重试',
+            type: 'error',
+            position: 'top-right',
+            duration: 2000
+          });
+          return;
         }
 
+        // 显示加载中状态
+        ElMessage.info('正在删除文件夹，请稍候...');
+
+        const response = await wsClient.emitWithAck('delete_training_result', {
+          token: localStorage.getItem('token'),
+          folder_name: folderName,
+          folderType: 'models'
+        }, 30000);
+        console.log('删除文件夹响应:', response);
+        if (response && response.status === 'success') {
+          ElNotification({
+            title: '操作成功',
+            message: response.message || '删除请求已成功发送',
+            type: 'success',
+            position: 'top-right',
+            duration: 2000,
+            showClose: true
+          });
+          
+          // 刷新列表
+          this.fetchResults();
+        } else {
+          console.error('删除失败:', response);
+          ElNotification({
+            title: '操作失败',
+            message: response.message || '删除失败',
+            type: 'error',
+            position: 'top-right',
+            duration: 2000,
+            showClose: true
+          });
+        }
       } catch (error) {
-        console.error("删除训练结果失败:", error);
-        this.$message.error(error.message || '删除请求失败或超时');
+        console.error('删除请求异常:', error);
+        ElNotification({
+          title: '操作失败',
+          message: error.message || '删除请求失败或超时',
+          type: 'error',
+          position: 'top-right',
+          duration: 2000,
+          showClose: true
+        });
       }
     },
 
@@ -1243,12 +1303,17 @@ export default {
           this.pointCloudFolders = response.results;
         } else {
           this.pointCloudFolders = [];
-          console.warn('Point cloud results not in expected format:', response);
         }
       } catch (err) {
-        console.error('获取已处理的点云文件夹列表失败:', err);
         this.pointCloudFolders = [];
-        this.$message.error('无法加载已处理的点云文件夹列表。');
+        ElNotification({
+          title: '操作失败',
+          message: '无法加载已处理的点云文件夹列表。',
+          type: 'error',
+          position: 'top-right',
+          duration: 2000,
+          showClose: true
+        });
       }
     },
 
@@ -1262,7 +1327,25 @@ export default {
     },
 
     fetchTrainingResults() {
-      // Implementation of fetchTrainingResults method
+      this.loadingResults = true;
+      const username = this.getUsername();
+      if (!username) {
+        this.loadingResults = false;
+        return;
+      }
+      
+      TrainingService.getTrainingResults(username)
+        .then(response => {
+          this.results = response.results || [];
+        })
+        .catch(error => {
+          console.error('获取训练结果失败:', error);
+          ElMessage.error('无法加载训练历史记录');
+          this.results = [];
+        })
+        .finally(() => {
+          this.loadingResults = false;
+        });
     },
 
     updateTaskStatus(updatedTask) {
@@ -1278,22 +1361,13 @@ export default {
 
     handleTrainingStatusUpdate(data) {
       if (!data) return;
-      
-      console.log('[WebSocket] 收到训练状态更新:', data);
-      
+        
       // 更新Vuex存储中的任务状态
       const updatedTaskData = {
         ...this.currentTask,
         ...data
       };
       this.$store.dispatch('setTrainingTask', updatedTaskData);
-
-      // 更新日志（如果有）
-      if (data.output_logs) {
-        this.$store.dispatch('updateTrainingLogs', data.output_logs);
-      }
-
-
       if (['completed', 'failed', 'cancelled'].includes(data.status)) {
         this.clearTaskCheckInterval();
         this.isProcessing = false;

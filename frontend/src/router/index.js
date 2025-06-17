@@ -35,7 +35,6 @@ const routes = [
     component: () => import('@/views/Profile.vue'),
     meta: { requiresAuth: true }
   },
-  // 添加一个捕获所有未匹配路由的路由
   {
     path: '/:pathMatch(.*)*',
     redirect: '/'
@@ -111,12 +110,9 @@ router.beforeEach(async (to, from, next) => {
       next('/login')
     }
   } else if (to.path === '/login' && token) {
-    // 如果用户已登录但访问登录页，重定向到仪表板
-    console.log('[Router] 用户已登录，重定向到仪表板')
     next('/dashboard')
   } else {
-    // 不需要认证的页面，直接访问
-    console.log(`[Router] 访问不需认证的页面: ${to.path}`)
+
     next()
   }
 })
