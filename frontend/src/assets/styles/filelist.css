@@ -6,7 +6,6 @@
 
 .file-list-card {
   height: auto;
-  min-height: auto; /* 移除最小高度限制 */
 }
 
 .card-header {

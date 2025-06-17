@@ -11,6 +11,7 @@
 
 .glass-card {
   background: rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(5px);
   backdrop-filter: blur(5px);
   border-radius: 15px;
   padding: 25px;
@@ -79,8 +80,8 @@ h5, h6 {
   height: 18px;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
   border: 2px solid rgba(78, 115, 223, 0.8);
   border-radius: 50%;
   cursor: pointer;
@@ -99,8 +100,8 @@ h5, h6 {
   height: 18px;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
   border: 2px solid rgba(78, 115, 223, 0.8);
   border-radius: 50%;
   cursor: pointer;
@@ -149,8 +150,8 @@ h5, h6 {
   border-radius: 4px;
   padding: 3px 6px;
   margin-left: 10px;
-  backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
   border: 1px solid rgba(78, 115, 223, 0.3);
 }
 
@@ -193,8 +194,8 @@ h5, h6 {
   padding: 20px;
   background: rgba(0, 0, 0, 0.2);
   border-radius: 12px;
-  backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -203,8 +204,8 @@ h5, h6 {
   min-width: 140px;
   transition: all 0.3s ease;
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16);
-  backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
   font-weight: 500;
   letter-spacing: 0.5px;
 }
@@ -301,8 +302,8 @@ h5, h6 {
   padding: var(--spacing-lg);
   background: rgba(0, 0, 0, 0.2);
   border-radius: 12px;
-  backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -314,8 +315,8 @@ h5, h6 {
 }
 
 .training-status .alert {
-  backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
   border-width: 2px;
 }
 
@@ -342,9 +343,34 @@ h5, h6 {
   border-color: rgba(245, 194, 199, 0.4);
   color: rgba(255, 255, 255, 0.9);
 }
-</style>
-<style>
-/* Remove bootstrap row negative margins if they exist */
+
 .row {
     --bs-gutter-x: 1.5rem;
+}
+/* 优化卡片效果 */
+.el-card {
+  border: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  transition: transform 0.3s, box-shadow 0.3s;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+/* 统一按钮风格 */
+.el-button--primary {
+  background: linear-gradient(135deg, #4e73df, #224abe);
+  border: none;
+  padding: 12px 24px;
+  transition: all 0.3s;
+}
+
+.el-button--primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(78, 115, 223, 0.4);
+}
+
+/* 自定义通知样式 */
+.custom-notification {
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
 }

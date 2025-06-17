@@ -48,11 +48,12 @@
       </div>
     </div>
   </div>
+
 </template>
 
 <script>
 export default {
-  name: 'Home',
+  name: 'HomePage',
   computed: {
     isLoggedIn() {
       return this.$store.getters.isAuthenticated
@@ -61,131 +62,6 @@ export default {
 }
 </script>
 
-<style scoped>
-.home-container {
-  max-width: 1200px;
-  margin: 2rem auto;
-  padding: 20px;
-  color: #ffffff;
-}
+<style src="../assets/css/Home.css">
 
-.hero-section {
-  text-align: center;
-  padding: 60px 40px;
-  margin-bottom: 60px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
-}
-
-h1 {
-  font-size: 2.8rem;
-  color: #ffffff;
-  margin-bottom: 20px;
-  font-weight: 700;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-}
-
-.description {
-  font-size: 1.2rem;
-  color: #e0e0e0;
-  max-width: 700px;
-  margin: 0 auto 30px;
-  line-height: 1.6;
-}
-
-.action-buttons {
-  margin-top: 30px;
-}
-
-.btn {
-  padding: 12px 30px;
-  font-size: 16px;
-  font-weight: 600;
-  border: none;
-  border-radius: 30px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  margin: 0 10px;
-}
-
-.btn-primary {
-  background-color: #4e73df;
-  color: white;
-}
-
-.btn-primary:hover {
-  background-color: #3a59c7;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(78, 115, 223, 0.25);
-}
-
-.btn-success {
-  background-color: #1cc88a;
-  color: white;
-}
-
-.btn-success:hover {
-  background-color: #16a173;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(28, 200, 138, 0.25);
-}
-
-.features-section {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 30px;
-  margin-top: 60px;
-}
-
-.feature-card {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  padding: 30px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-  text-align: center;
-}
-
-.feature-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.feature-icon {
-  font-size: 40px;
-  margin-bottom: 15px;
-}
-
-.feature-card h3 {
-  font-size: 1.3rem;
-  margin-bottom: 15px;
-  color: #ffffff;
-}
-
-.feature-card p {
-  color: #e0e0e0;
-  line-height: 1.6;
-}
-
-@media (max-width: 768px) {
-  .hero-section {
-    padding: 40px 15px;
-  }
-  
-  h1 {
-    font-size: 2rem;
-  }
-  
-  .description {
-    font-size: 1rem;
-  }
-}
 </style>

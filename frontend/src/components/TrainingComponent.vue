@@ -175,7 +175,7 @@
               >
               <span class="range-value ms-2">{{ trainingParams.position_lr_final }}</span>
             </div>
-            <div class="parameter-description">Default: 0.0000016</div>
+            <div class="parameter-description">默认值: 0.0000016</div>
           </div>
         </div>
 
@@ -196,7 +196,7 @@
               >
               <span class="range-value ms-2">{{ trainingParams.feature_lr }}</span>
             </div>
-            <div class="parameter-description">Default: 0.0025</div>
+            <div class="parameter-description">默认值: 0.0025</div>
           </div>
 
           <div class="col-md-6">
@@ -222,7 +222,7 @@
         <div class="row parameter-row">
           <div class="col-md-6">
             <div class="parameter-label">
-              Scaling Learning Rate
+              Scaling 学习率
               <i class="fas fa-question-circle parameter-help" title="Scaling learning rate"></i>
             </div>
             <div class="d-flex align-items-center">
@@ -236,12 +236,12 @@
               >
               <span class="range-value ms-2">{{ trainingParams.scaling_lr }}</span>
             </div>
-            <div class="parameter-description">Default: 0.005</div>
+            <div class="parameter-description">默认值: 0.005</div>
           </div>
 
           <div class="col-md-6">
             <div class="parameter-label">
-              Rotation Learning Rate
+              旋转学习率
               <i class="fas fa-question-circle parameter-help" title="Rotation learning rate"></i>
             </div>
             <div class="d-flex align-items-center">
@@ -255,7 +255,7 @@
               >
               <span class="range-value ms-2">{{ trainingParams.rotation_lr }}</span>
             </div>
-            <div class="parameter-description">Default: 0.001</div>
+            <div class="parameter-description">默认值: 0.001</div>
           </div>
         </div>
 
@@ -276,7 +276,7 @@
               >
               <span class="range-value ms-2">{{ trainingParams.position_lr_delay_mult }}</span>
             </div>
-            <div class="parameter-description">Default: 0.01</div>
+            <div class="parameter-description">默认值: 0.01</div>  
           </div>
 
           <div class="col-md-6">
@@ -291,7 +291,7 @@
               min="1000"
               max="100000"
             >
-            <div class="parameter-description">Default: 30,000</div>
+            <div class="parameter-description">默认值: 30,000</div>
           </div>
         </div>
       </div>
@@ -313,7 +313,7 @@
               min="0"
               max="10000"
             >
-            <div class="parameter-description">Default: 500</div>
+            <div class="parameter-description">默认值: 500</div>
           </div>
 
           <div class="col-md-6">
@@ -335,7 +335,7 @@
         <div class="row parameter-row">
           <div class="col-md-6">
             <div class="parameter-label">
-              Densification Interval
+              密集化间隔
               <i class="fas fa-question-circle parameter-help" title="How frequently to densify (iterations)"></i>
             </div>
             <input
@@ -345,12 +345,12 @@
               min="10"
               max="1000"
             >
-            <div class="parameter-description">Default: 100</div>
+            <div class="parameter-description">默认值: 100</div>
           </div>
 
           <div class="col-md-6">
             <div class="parameter-label">
-              Opacity Reset Interval
+              不透明度重置间隔
               <i class="fas fa-question-circle parameter-help" title="How frequently to reset opacity (iterations)"></i>
             </div>
             <input
@@ -360,14 +360,14 @@
               min="100"
               max="10000"
             >
-            <div class="parameter-description">Default: 3,000</div>
+            <div class="parameter-description">默认值: 3,000</div>
           </div>
         </div>
 
         <div class="row parameter-row">
           <div class="col-md-6">
             <div class="parameter-label">
-              Densify Gradient Threshold
+              密集化梯度阈值
               <i class="fas fa-question-circle parameter-help" title="Limit that decides if points should be densified based on 2D position gradient"></i>
             </div>
             <div class="d-flex align-items-center">
@@ -381,12 +381,12 @@
               >
               <span class="range-value ms-2">{{ trainingParams.densify_grad_threshold }}</span>
             </div>
-            <div class="parameter-description">Default: 0.0002</div>
+            <div class="parameter-description">默认值: 0.0002</div>
           </div>
 
           <div class="col-md-6">
             <div class="parameter-label">
-              Percent Dense
+              密集化百分比
               <i class="fas fa-question-circle parameter-help" title="Percentage of scene extent a point must exceed to be forcibly densified"></i>
             </div>
             <div class="d-flex align-items-center">
@@ -400,14 +400,14 @@
               >
               <span class="range-value ms-2">{{ trainingParams.percent_dense }}</span>
             </div>
-            <div class="parameter-description">Default: 0.01</div>
+            <div class="parameter-description">默认值: 0.01</div>
           </div>
         </div>
       </div>
 
       <!-- 其他参数 -->
       <div class="parameter-group">
-        <h6 class="mb-3">Other Parameters</h6>
+        <h6 class="mb-3">其他参数</h6>
 
         <div class="row parameter-row">
           <div class="col-md-6">
@@ -431,7 +431,7 @@
 
           <div class="col-md-6">
             <div class="parameter-label">
-              Test Iterations
+              测试迭代
               <i class="fas fa-question-circle parameter-help" title="Iterations at which to compute L1 and PSNR over test set"></i>
             </div>
             <input
@@ -440,14 +440,14 @@
               v-model="testIterationsInput"
               placeholder="e.g., 7000 30000"
             >
-            <div class="parameter-description">Default: 7000 30000 (space-separated)</div>
+            <div class="parameter-description">默认值: 7000 30000</div>
           </div>
         </div>
 
         <div class="row parameter-row">
           <div class="col-md-6">
             <div class="parameter-label">
-              Save Iterations
+              保存迭代次数
               <i class="fas fa-question-circle parameter-help" title="Iterations at which to save the Gaussian model"></i>
             </div>
             <input
@@ -456,12 +456,12 @@
               v-model="saveIterationsInput"
               placeholder="e.g., 7000 30000"
             >
-            <div class="parameter-description">Default: 7000 30000 iterations (space-separated)</div>
+            <div class="parameter-description">默认值: 7000 30000</div> 
           </div>
 
           <div class="col-md-6">
             <div class="parameter-label">
-              Checkpoint Iterations
+              检查点迭代次数
               <i class="fas fa-question-circle parameter-help" title="Iterations at which to store a checkpoint for continuing later"></i>
             </div>
             <input
@@ -470,7 +470,7 @@
               v-model="checkpointIterationsInput"
               placeholder="e.g., 5000 15000 25000"
             >
-            <div class="parameter-description">Optional, space-separated values</div>
+            <div class="parameter-description">可选，空格分隔的值</div>
           </div>
         </div>
 
@@ -479,20 +479,20 @@
             <div class="form-check">
               <input class="form-check-input" type="checkbox" v-model="trainingParams.quiet" id="quietOption">
               <label class="form-check-label" for="quietOption">
-                Quiet Mode
+                安静模式
               </label>
             </div>
-            <div class="parameter-description">Omit any text written to standard output</div>
+            <div class="parameter-description">忽略任何写入标准输出的文本</div>
           </div>
 
           <div class="col-md-6">
             <div class="form-check">
               <input class="form-check-input" type="checkbox" v-model="trainingParams.debug" id="debugOption">
               <label class="form-check-label" for="debugOption">
-                Debug Mode
+                调试模式
               </label>
             </div>
-            <div class="parameter-description">Enable debug mode if you experience errors</div>
+            <div class="parameter-description">如果遇到错误，启用调试模式</div>
           </div>
         </div>
       </div>
@@ -536,7 +536,7 @@
 
       <div v-else class="training-status">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0">Training: {{ selectedFolder }}</h5>
+          <h5 class="mb-0">训练: {{ selectedFolder }}</h5>
           <div>
             <span class="badge bg-primary ms-2">{{ currentTask.status }}</span>
           </div>
@@ -651,7 +651,6 @@
 import { eventBus } from '@/utils/eventBus';
 import { TrainingService } from '@/services/trainingService';
 import { TrainingParams } from '@/utils/trainingParams';
-import { TaskPollingManager } from '@/utils/taskPollingManager';
 import { TrainingUtils } from '@/utils/trainingUtils';
 import { ElNotification, ElMessage, ElMessageBox } from 'element-plus';
 import { shallowRef } from 'vue';
@@ -680,9 +679,6 @@ export default {
       // 使用默认训练参数
       trainingParams: TrainingParams.getDefaultParams(),
       
-      // 轮询管理器
-      pollingManager: null,
-
       icons: {
         Delete: shallowRef(Delete),
       }
@@ -762,8 +758,7 @@ export default {
 
     this.fetchTrainingResults();
     this.fetchPointCloudFolders();
-    this.pollingManager = new TaskPollingManager(this.updateTaskStatus.bind(this));
-
+    
     // 连接WebSocket
     const token = localStorage.getItem('token');
     if(token && !wsClient.isConnected()) {
@@ -773,15 +768,18 @@ export default {
     
     // 监听文件夹更新事件
     wsClient.on('folders_updated', this.handleFoldersUpdated);
+    
+    // 添加训练状态更新监听
+    wsClient.on('training_status_update', this.handleTrainingStatusUpdate);
   },
   beforeUnmount() {
+    // 清理轮询和事件监听
     this.clearTaskCheckInterval();
     eventBus.off('point-cloud-processed', this.handlePointCloudProcessed);
-    if (this.pollingManager) {
-        this.pollingManager.stopPolling();
-    }
-    // 移除监听并断开连接
+    
+    // 移除所有监听并断开连接
     wsClient.off('folders_updated');
+    wsClient.off('training_status_update');
     if(wsClient.isConnected()) {
         wsClient.disconnect();
     }
@@ -802,14 +800,11 @@ export default {
       this.httpError = null;
       try {
         const username = this.getUsername();
-        console.log(`[TrainingComponent] Fetching folders for username: ${username}`);
+
         const response = await TrainingService.getPointCloudResults(username);
-        console.log('[TrainingComponent] Raw response from service:', JSON.parse(JSON.stringify(response)));
         this.handlePointCloudResultsResponse(response);
-        console.log('[TrainingComponent] Folders after processing response:', JSON.parse(JSON.stringify(this.folders)));
         return this.folders;
       } catch (error) {
-        console.error('[TrainingComponent] Error fetching folders:', error);
         this.httpError = 'Failed to load folders. Please check backend connection.';
         this.$message.error(this.httpError);
         return [];
@@ -825,7 +820,6 @@ export default {
         const response = await TrainingService.getTrainingResults(username);
         this.results = response.results || [];
       } catch (error) {
-        console.error('Error fetching training results:', error);
         this.$message.error('Failed to load training history.');
       } finally {
         this.loadingResults = false;
@@ -846,7 +840,14 @@ export default {
       this.testIterationsInput = "7000 30000";
       this.saveIterationsInput = "7000 30000";
       this.checkpointIterationsInput = "";
-      this.$message.info('Parameters reset to default.');
+      ElNotification({
+        title: '操作成功',
+        message: '所有训练参数已恢复默认设置',
+        type: 'success',
+        position: 'top-right',
+        duration: 2000,
+        showClose: true
+      });
     },
 
     async startTraining() {
@@ -926,7 +927,14 @@ export default {
           }
         };
         this.$store.dispatch('setTrainingTask', taskData);
-        this.$message.success('Training task started successfully!');
+        ElNotification({
+          title: '操作成功',
+          message: '训练任务已成功启动',
+          type: 'success',
+          position: 'bottom-right',
+          customClass: 'custom-notification',
+          duration: 3000
+        });
         // Polling will be started by the watcher
       } else {
         this.$message.error('Failed to start training: Invalid response from server.');
@@ -935,49 +943,54 @@ export default {
     },
 
     startTaskStatusPolling(taskId) {
-      this.pollingManager.startPolling(
-        // 轮询函数
-        () => TrainingService.getTrainingStatus(this.getUsername(), taskId),
-        // 更新回调
-        (response) => {
-          const updatedTaskData = {
-            ...this.currentTask,
-            ...response
-          };
-          this.$store.dispatch('setTrainingTask', updatedTaskData);
-
-          if (response.output_logs) {
-            this.$store.dispatch('updateTrainingLogs', response.output_logs);
-          }
-
-          if (TrainingUtils.isTaskCompleted(response.status) || TrainingUtils.isTaskFailed(response.status)) {
-            this.clearTaskCheckInterval();
-            this.isProcessing = false;
-            const finalTask = {
-              ...this.currentTask,
-              ...response,
-              end_time: new Date().toISOString()
-            };
-            this.$store.dispatch('setTrainingTask', finalTask);
-            if (response.status === 'cancelled') {
-              setTimeout(() => this.resetTaskState(), 1500);
-            }
-            this.fetchResults();
-          }
-        },
-        // 错误回调
-        (error) => {
+      // 如果WebSocket已连接，则注册任务监听
+      if (wsClient.isConnected()) {
+        wsClient.emit('register_task_updates', {
+          username: this.getUsername(),
+          task_id: taskId
+        });
+      } else {
+        console.warn('WebSocket未连接，无法注册任务监听');
+        // 如果WebSocket未连接，回退到HTTP轮询实现
+        this.fallbackToHttpPolling(taskId);
+      }
+    },
+    
+    fallbackToHttpPolling(taskId) {
+      console.log('回退到HTTP轮询方式获取任务状态');
+      if (this.taskCheckInterval) {
+        clearInterval(this.taskCheckInterval);
+      }
+      
+      this.taskCheckInterval = setInterval(async () => {
+        try {
+          const response = await TrainingService.getTrainingStatus(this.getUsername(), taskId);
+          this.handleTrainingStatusUpdate(response);
+        } catch (error) {
+          console.error('轮询任务状态时发生错误:', error);
           if (error.status === 404) {
-            this.$message.error('Task not found on server. Stopping updates.');
+            this.$message.error('服务器上找不到任务。停止更新。');
             this.clearTaskCheckInterval();
-            this.$store.dispatch('setTrainingTask', { ...this.currentTask, status: 'failed', message: 'Task not found on server.' });
+            this.$store.dispatch('setTrainingTask', { ...this.currentTask, status: 'failed', message: '服务器上找不到任务。' });
           }
         }
-      );
+      }, 3000); // 每3秒轮询一次
     },
-
+    
+    // 修改clearTaskCheckInterval方法
     clearTaskCheckInterval() {
-      this.pollingManager.stopPolling();
+      if (this.taskCheckInterval) {
+        clearInterval(this.taskCheckInterval);
+        this.taskCheckInterval = null;
+      }
+      
+      // 如果WebSocket已连接，则取消任务更新
+      if (wsClient.isConnected() && this.currentTask && this.currentTask.task_id) {
+        wsClient.emit('unregister_task_updates', {
+          username: this.getUsername(),
+          task_id: this.currentTask.task_id
+        });
+      }
     },
 
     async checkActiveTask() {
@@ -1262,10 +1275,44 @@ export default {
             this.trainingResults.unshift(updatedTask);
         }
     },
+
+    handleTrainingStatusUpdate(data) {
+      if (!data) return;
+      
+      console.log('[WebSocket] 收到训练状态更新:', data);
+      
+      // 更新Vuex存储中的任务状态
+      const updatedTaskData = {
+        ...this.currentTask,
+        ...data
+      };
+      this.$store.dispatch('setTrainingTask', updatedTaskData);
+
+      // 更新日志（如果有）
+      if (data.output_logs) {
+        this.$store.dispatch('updateTrainingLogs', data.output_logs);
+      }
+
+
+      if (['completed', 'failed', 'cancelled'].includes(data.status)) {
+        this.clearTaskCheckInterval();
+        this.isProcessing = false;
+        const finalTask = {
+          ...this.currentTask,
+          ...data,
+          end_time: data.end_time || new Date().toISOString()
+        };
+        this.$store.dispatch('setTrainingTask', finalTask);
+        if (data.status === 'cancelled') {
+          setTimeout(() => this.resetTaskState(), 1500);
+        }
+        this.fetchResults();
+      }
+    },
   }
 };
 </script>
 
-<style  src="../assets/styles/trainingComponent.css">
+<style src="../assets/styles/trainingComponent.css" scoped>
 
 </style>

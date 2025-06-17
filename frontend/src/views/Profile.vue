@@ -68,7 +68,7 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
 export default {
-  name: 'Profile',
+  name: 'ProfilePage',
   data() {
     const validatePass = (rule, value, callback) => {
       if (value === '') {

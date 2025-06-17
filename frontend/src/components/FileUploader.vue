@@ -37,7 +37,7 @@
       <el-tab-pane label="Image Files" name="multiple">
         <template #label>
           <span class="tab-label-item">
-            <el-icon><Picture /></el-icon> 图片上传
+            <el-icon><PictureIcon /></el-icon> 图片上传
           </span>
         </template>
       </el-tab-pane>
@@ -348,7 +348,7 @@ import axios from 'axios'
 import {
   Upload,
   Folder,
-  Picture,
+  Picture as PictureIcon,
   VideoCamera,
   UploadFilled,
   Connection,
@@ -363,7 +363,7 @@ export default {
   components: {
     Upload,
     Folder,
-    Picture,
+    PictureIcon,
     VideoCamera,
     UploadFilled,
     ElTabs,

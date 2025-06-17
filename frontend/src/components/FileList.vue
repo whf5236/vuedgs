@@ -78,7 +78,7 @@
                       {{ item.type === 'point_cloud' ? 'Point Cloud' : 'Images' }}
                     </el-tag>
                     <el-tag v-if="item.has_images" size="small" type="info" class="image-count">
-                      <el-icon><Picture /></el-icon> {{ item.image_count }}
+                      <el-icon><PictureIcon /></el-icon> {{ item.image_count }}
                     </el-tag>
                   </template>
                    <!-- File Meta -->
@@ -125,7 +125,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   Folder,
   FolderOpened,
-  Picture,
+  Picture as PictureIcon,
   Refresh,
   Histogram,
   Connection as ElIconConnection,
@@ -138,12 +138,10 @@ export default {
   components: {
     Folder,
     FolderOpened,
-    Picture,
+    PictureIcon,
     Refresh,
-    Histogram,
     ElIconConnection,
     Files,
-    Delete,
   },
   props: {
     selectedFile: {

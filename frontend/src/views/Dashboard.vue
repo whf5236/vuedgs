@@ -106,7 +106,6 @@
 </template>
 
 <script>
-import axios from 'axios'
 // SocketIOClient import removed
 import FileUploader from '@/components/FileUploader.vue';
 import FileList from '@/components/FileList.vue';
@@ -118,33 +117,22 @@ import GaussianSplatting from '@/components/GaussianSplatting.vue';
 import { eventBus } from '@/utils/eventBus';
 import {
   ElContainer,
-  ElHeader,
+
   ElMain,
-  ElFooter,
-  ElCard,
   ElTabs,
   ElTabPane,
   ElRow,
   ElCol,
-  ElDropdown,
-  ElDropdownMenu,
-  ElDropdownItem,
-  ElAvatar,
-  ElIcon,
-  ElEmpty
 } from 'element-plus';
 import {
   Upload as ElIconUpload,
   Connection as ElIconConnection,
   Setting as ElIconSetting,
-  TrendCharts as ElIconTrendCharts,
-  DataAnalysis as ElIconDataAnalysis,
-  SwitchButton as ElIconSwitchButton,
   View as ElIconView
 } from '@element-plus/icons-vue';
 
 export default {
-  name: 'Dashboard',
+  name: 'DashboardPage',
   components: {
     FileUploader,
     FileList,
@@ -154,26 +142,14 @@ export default {
     TrainingVisualizationComponent,
     GaussianSplatting,
     ElContainer,
-    ElHeader,
     ElMain,
-    ElFooter,
-    ElCard,
     ElTabs,
     ElTabPane,
     ElRow,
     ElCol,
-    ElDropdown,
-    ElDropdownMenu,
-    ElDropdownItem,
-    ElAvatar,
-    ElIcon,
-    ElEmpty,
     ElIconUpload,
     ElIconConnection,
     ElIconSetting,
-    ElIconTrendCharts,
-    ElIconDataAnalysis,
-    ElIconSwitchButton,
     ElIconView
   },
   data() {

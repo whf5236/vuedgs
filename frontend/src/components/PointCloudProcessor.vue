@@ -535,7 +535,6 @@ export default {
         return;
       }
       const username = this.$store.getters.user?.username;
-      // 确保用户名不是 undefined
       if (!username) {
         ElMessage.error('用户未登录，请先登录');
         // 重定向到登录页
@@ -594,7 +593,7 @@ export default {
   },
 
   viewResultDetails(result) {
-    alert(`Result details for ${result.source_path ? result.source_path.split('/').pop() : result.name}`);
+    ElMessage.info(`Result details for ${result.source_path ? result.source_path.split('/').pop() : result.name}`);
   },
 
   async handleAutoProcess(folderName) {

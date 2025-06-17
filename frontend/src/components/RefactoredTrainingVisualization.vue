@@ -45,11 +45,7 @@
 <script setup>
 import { ref, reactive, onMounted, onBeforeUnmount, computed, onUnmounted, nextTick } from 'vue';
 import { useStore } from 'vuex';
-import { Refresh, FullScreen, Camera, Warning } from '@element-plus/icons-vue';
-import TrainingControlWidget from './widgets/TrainingControlWidget.vue';
-import RenderControlWidget from './widgets/RenderControlWidget.vue';
-import CameraControlWidget from './widgets/CameraControlWidget.vue';
-import TrainingStatsWidget from './widgets/TrainingStatsWidget.vue';
+import { Warning } from '@element-plus/icons-vue';
 
 import { useCamera } from '../composables/useCamera.js';
 import { useSplatviz } from '../composables/useSplatviz.js';
@@ -66,7 +62,6 @@ const props = defineProps({
 // --- Refs and State ---
 const store = useStore();
 const renderCanvasRef = ref(null);
-const renderContainerRef = ref(null);
 const canvasContainerRef = ref(null);
 const canvasRef = ref(null);
 
@@ -85,11 +80,8 @@ const renderParams = ref({
 });
 
 // 训练状态
-const trainingStatus = reactive({ paused: false, iteration: 0, running: false });
 const trainingData = reactive({ iteration: 0, loss: 0, num_gaussians: 0, sh_degree: 0 });
-const maxIterations = ref(30000);
 
-const showRenderInfo = ref(true);
 const renderFPS = ref(0);
 let lastFrameTime = 0;
 
@@ -102,10 +94,6 @@ const onImageRendered = (imageBlob, stats) => {
     if (stats.loss !== undefined) trainingData.loss = stats.loss;
     if (stats.num_gaussians !== undefined) trainingData.num_gaussians = stats.num_gaussians;
     if (stats.sh_degree !== undefined) trainingData.sh_degree = stats.sh_degree;
-      if (stats.paused !== undefined) {
-        trainingStatus.paused = stats.paused;
-        trainingStatus.running = !stats.paused;
-    }
     
     // 渲染图像
     const canvas = renderCanvasRef.value;
@@ -133,11 +121,7 @@ const {
     connect,
     disconnect,
     requestRender,
-    pauseTraining,
-    resumeTraining,
-    stepTraining,
-    stopTraining,
-} = useSplatviz(camera, renderParams, trainingStatus, onImageRendered);
+} = useSplatviz(camera, renderParams, onImageRendered);
 
 
 // --- UI Interaction State ---
@@ -166,26 +150,10 @@ const websocketConfig = computed(() => {
     return trainingTask.websocket || { host: 'localhost', port: 6009 };
 });
 
-// --- Methods ---
-function updateRenderParams(params) {
-    renderParams.value = { ...renderParams.value, ...params };
-    requestRender();
-}
 
-function updateCameraParams(params) {
-    Object.assign(camera, params);
-    requestRender();
-}
 
-function resetCamera() {
-    camera.resetCameraToDefault();
-    requestRender();
-}
 
-function setStopIteration(iteration) {
-    maxIterations.value = iteration;
-    stopTraining(iteration);
-}
+
 
 const handleConnect = () => {
     const { host, port } = websocketConfig.value;
@@ -385,22 +353,6 @@ onUnmounted(() => {
     window.removeEventListener('resize', handleResize);
     window.removeEventListener('keydown', handleKeyDown);
 });
-
-// Helper functions for template
-const saveScreenshot = () => {
-    const link = document.createElement('a');
-    link.download = `screenshot_${Date.now()}.png`;
-    link.href = renderCanvasRef.value.toDataURL();
-    link.click();
-};
-
-const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-        renderContainerRef.value?.requestFullscreen();
-      } else {
-        document.exitFullscreen();
-    }
-};
 
 function handleResize() {
   if (canvasContainerRef.value && canvasRef.value) {

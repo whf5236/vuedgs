@@ -61,6 +61,7 @@ import { useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 
 export default {
+  name: 'LoginPage',
   setup() {
     const router = useRouter()
     const store = useStore()
@@ -75,17 +76,14 @@ export default {
       try {
         loading.value = true
         error.value = ''
-        console.log('发送登录请求:', formData)
         
         // 调用登录 action 并等待结果
         await store.dispatch('login', formData)
-        console.log('登录成功，准备跳转到仪表盘')
         
         // 在跳转前添加短暂延迟，确保认证状态已更新
         setTimeout(() => {
           // 检查是否仍在登录页面，避免在路由守卫已经处理的情况下重复跳转
           if (router.currentRoute.value.path === '/login') {
-            console.log('从登录页面跳转到仪表盘')
             router.push({ name: 'Dashboard' }).catch(err => {
               if (err.name !== 'NavigationDuplicated') {
                 console.error('导航错误:', err)

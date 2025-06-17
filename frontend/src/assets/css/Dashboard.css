@@ -7,9 +7,10 @@
 }
 
 .dashboard-container {
-  background: rgba(30, 41, 59, 0.5); /* Semi-transparent dark background */
-  backdrop-filter: blur(10px); /* Frosted glass effect */
+  background: rgba(30, 41, 59, 0.5); 
   -webkit-backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px); 
   border-radius: 12px;
   padding: 24px;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -23,22 +24,24 @@
   gap: 8px;
   padding: 0 12px;
   font-size: 1rem;
-  color: #e2e8f0; /* Lighter text for tabs */
+  color: #e2e8f0; 
 }
 
 .tab-content {
-  background: rgba(15, 23, 42, 0.6); /* Slightly darker for content */
+  background: rgba(15, 23, 42, 0.6); 
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   border-radius: 8px;
   padding: 20px;
-  margin-top: -16px; /* Overlap with tabs */
+  margin-top: -16px; 
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .file-list-section {
   margin-top: 20px;
   background: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.05);
   overflow: hidden; /* 确保子元素的圆角也能显示 */

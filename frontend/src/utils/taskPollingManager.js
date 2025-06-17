@@ -9,13 +9,10 @@ export class TaskPollingManager {
   // 开始轮询
   startPolling(pollFunction, onUpdate, onError) {
     if (this.isPolling) {
-      console.log('轮询已在进行中');
       return;
     }
 
     this.isPolling = true;
-    console.log('开始状态轮询');
-
     this.pollingInterval = setInterval(async () => {
       try {
         const result = await pollFunction();

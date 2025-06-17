@@ -123,8 +123,8 @@
   cursor: pointer;
   transition: all var(--transition-speed) ease;
   background-color: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: rgba(255, 255, 255, 0.9);
 }
@@ -310,7 +310,6 @@
 @media (max-width: 768px) {
   .card-header {
     height: auto;
-    min-height: auto;
     max-height: none;
     padding: var(--spacing-sm) var(--spacing-md);
   }
