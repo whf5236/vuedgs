@@ -4,7 +4,7 @@
       <!-- 左侧：文件夹选择 -->
       <div class="glass-card layout-left">
         <div class="card-header">
-          <h6 class="m-0"><i class="fas fa-folder me-2"></i> 图片文件夹</h6>
+          <h6><el-icon><Folder /></el-icon> 图片文件夹</h6>
         </div>
         <div class="card-body">
           <div v-if="loading" class="text-center py-5">
@@ -16,22 +16,19 @@
 
           <div v-else-if="folders.length === 0" class="text-center py-5">
             <i class="fas fa-folder-open fa-4x text-muted mb-3"></i>
-            <p class="text-muted">No image folders found</p>
-            <p class="text-muted small">Upload images first in the File Upload tab</p>
+            <p class="text-muted">未找到图片文件夹</p>
+            <p class="text-muted small">请先在文件上传页面上传图片</p>
           </div>
 
           <div v-else class="folder-list">
             <div v-for="folder in folders" :key="folder.name" class="folder-item"
               :class="{ 'active': selectedFolder === folder.name }" @click="selectFolder(folder)">
               <div class="folder-icon">
-                <i class="fas fa-folder"></i>
+                <el-icon color="#409EFF" size="20"><Folder /></el-icon>
               </div>
               <div class="folder-info">
                 <div class="folder-name">{{ folder.name }}</div>
-                <div class="folder-details">
-                  <span><i class="fas fa-image me-1"></i> {{ folder.image_count }} images</span>
-                  <span class="ms-2"><i class="fas fa-clock me-1"></i> {{ formatDate(folder.created_time) }}</span>
-                </div>
+
               </div>
               <div class="folder-action">
                 <button class="btn btn-sm btn-primary" @click.stop="processFolder(folder)"
@@ -47,13 +44,13 @@
       <!-- 右侧：处理状态和结果 -->
       <div class="glass-card layout-right">
         <div class="card-header">
-          <h6 class="m-0"><i class="fas fa-cube me-2"></i> 点云处理</h6>
+          <h6><el-icon><Connection /></el-icon> 点云处理</h6>
         </div>
         <div class="card-body">
           <div v-if="!selectedFolder && !currentTask" class="text-center py-5">
             <i class="fas fa-cube fa-4x text-muted mb-3"></i>
             <p class="text-muted">选择文件夹进行处理</p>
-            <p class="text-muted small">The processing may take several minutes depending on the number of images</p>
+            <p class="text-muted small">处理时间取决于图片数量，可能需要几分钟</p>
           </div>
 
           <div v-else-if="currentTask" class="processing-status">
@@ -90,22 +87,22 @@
 
             <div v-if="currentTask.status === 'processing'" class="mt-3">
               <button class="btn btn-danger" @click="cancelTask">
-                <i class="fas fa-stop me-2"></i> Cancel Processing
+                <i class="fas fa-stop me-2"></i> 取消处理
               </button>
             </div>
 
             <div v-if="currentTask.status === 'completed'" class="mt-4">
-              <h6 class="mb-3">Processing Results</h6>
+              <h6 class="mb-3">处理结果</h6>
               <div class="result-info">
-                <p><strong>Processing Time:</strong> {{ formatTime(currentTask.processing_time) }}</p>
+                <p><strong>处理时间:</strong> {{ formatTime(currentTask.processing_time) }}</p>
                 <p><strong>输出文件夹:</strong> {{ currentTask.output_folder }}</p>
               </div>
               <div class="mt-3">
                 <button class="btn btn-success me-2" @click="viewResults">
-                  <i class="fas fa-eye me-2"></i> View Results
+                  <i class="fas fa-eye me-2"></i> 查看结果
                 </button>
                 <button class="btn btn-primary" @click="resetTask">
-                  <i class="fas fa-redo me-2"></i> Process Another Folder
+                  <i class="fas fa-redo me-2"></i> 处理另一个文件夹
                 </button>
               </div>
             </div>
@@ -128,7 +125,7 @@
                       <i class="fas fa-images"></i>
                     </div>
                     <div class="info-content">
-                      <div class="info-label">Images</div>
+                      <div class="info-label">图片数量</div>
                       <div class="info-value">{{ selectedFolderDetails?.image_count || 0 }}</div>
                     </div>
                   </div>
@@ -139,7 +136,7 @@
                       <i class="fas fa-calendar-alt"></i>
                     </div>
                     <div class="info-content">
-                      <div class="info-label">Created</div>
+                      <div class="info-label">创建时间</div>
                       <div class="info-value">{{ formatDate(selectedFolderDetails?.created_time) }}</div>
                     </div>
                   </div>
@@ -147,24 +144,36 @@
               </div>
             </div>
 
-            <div class="processing-options mb-4">
-              <h6 class="mb-3">Processing Options</h6>
-              <div class="form-check mb-2">
+            <div class="processing-options">
+              <h6 class="section-title"><el-icon><Setting /></el-icon> 处理选项</h6>
+              <div class="row">
+                <div class="col-12">
+                  <div class="form-check">
                 <input class="form-check-input" type="checkbox" v-model="processingOptions.resize" id="resizeOption">
                 <label class="form-check-label" for="resizeOption">
-                  Generate resized versions of images (recommended)
+                  生成缩放后的图片（推荐）
                 </label>
+                  </div>
+                </div>
               </div>
             </div>
 
             <div class="processing-actions">
-              <button class="btn btn-primary btn-lg" @click="processSelectedFolder" :disabled="isProcessing">
-                <i class="fas" :class="isProcessing ? 'fa-spinner fa-spin' : 'fa-play'"></i>
-                {{ isProcessing ? 'Processing...' : 'Start Processing' }}
+              <div class="row">
+                <div class="col-md-6">
+                  <button class="btn btn-primary btn-lg w-100" @click="processSelectedFolder" :disabled="isProcessing">
+                    <el-icon v-if="isProcessing"><Loading /></el-icon>
+                    <el-icon v-else><VideoPlay /></el-icon>
+                    {{ isProcessing ? '处理中...' : '开始处理' }}
               </button>
-              <button class="btn btn-outline-secondary ms-2" @click="cancelSelection" :disabled="isProcessing">
-                Cancel
+                </div>
+                <div class="col-md-6">
+                  <button class="btn btn-outline-secondary btn-lg w-100" @click="cancelSelection" :disabled="isProcessing">
+                    <el-icon><CircleClose /></el-icon>
+                    取消
               </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -174,30 +183,30 @@
     <!-- 处理结果列表 -->
     <div class="glass-card mt-4">
       <div class="card-header">
-        <h6 class="m-0"><i class="fas fa-history me-2"></i> 处理历史</h6>
+        <h6><el-icon><Clock /></el-icon> 处理历史</h6>
       </div>
       <div class="card-body">
         <div v-if="loadingResults" class="text-center py-4">
           <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">加载中...</span>
           </div>
-          <p class="mt-3">Loading processing history...</p>
+          <p class="mt-3">加载处理历史...</p>
         </div>
 
         <div v-else-if="results.length === 0" class="text-center py-4">
           <i class="fas fa-history fa-3x text-muted mb-3"></i>
-          <p class="text-muted">No processing history found</p>
+          <p class="text-muted">未找到处理历史</p>
         </div>
 
         <div v-else class="table-responsive">
           <table class="table table-hover">
             <thead>
               <tr>
-                <th>Folder</th>
-                <th>Status</th>
-                <th>Processing Time</th>
-                <th>Processed On</th>
-                <th>Actions</th>
+                <th>文件夹</th>
+                <th>状态</th>
+                <th>处理时间</th>
+                <th>处理时间</th>
+                <th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -253,8 +262,6 @@ import axios from 'axios'
 // SocketIOClient import removed
 import { eventBus } from '@/utils/eventBus';
 import { ElMessage } from 'element-plus';
-import { shallowRef } from 'vue';
-import { Folder, Delete, Refresh, VideoCamera, Picture, ArrowRight, View, CircleCheck, CircleClose, Loading } from '@element-plus/icons-vue';
 
 export default {
   name: 'PointCloudProcessor',
@@ -306,13 +313,20 @@ export default {
       try {
         // 检查用户是否已登录
         if (!this.$store.getters.isAuthenticated) {
-          this.$message.error('请先登录');
+          ElMessage.error('请先登录');
+          // 重定向到登录页
+          this.$router.push('/login');
           return;
         }
         const username = this.$store.getters.user?.username;
-
+        // 确保用户名不是 undefined
+        if (!username) {
+          ElMessage.error('用户未登录，请先登录');
+          // 重定向到登录页
+          this.$router.push('/login');
+          return;
+        }
         let response;
-
         if (refresh) {
           const httpResponse = await axios.get(`http://localhost:5000/api/folders/${username}`);
           response = { data: httpResponse.data };
@@ -321,13 +335,10 @@ export default {
           response = { data: httpResponse.data };
         }
 
-        console.log('获取到的文件夹:', response.data);
-
         // 过滤出包含图片的文件夹
         this.folders = response.data.folders.filter(folder => folder.has_images) || [];
       } catch (error) {
-        console.error('Error fetching folders:', error);
-        this.error = 'Failed to load folders. Please try again.';
+        this.error = 'Failed to load folders. Please try again.'; 
       } finally {
         this.loading = false;
       }
@@ -339,12 +350,20 @@ export default {
       try {
         // 检查用户是否已登录
         if (!this.$store.getters.isAuthenticated) {
-          this.$message.error('请先登录');
+          ElMessage.error('请先登录');
+          // 重定向到登录页
+          this.$router.push('/login');
           return;
         }
         const username = this.$store.getters.user?.username;
+        // 确保用户名不是 undefined
+        if (!username) {
+          ElMessage.error('用户未登录，请先登录');
+          // 重定向到登录页
+          this.$router.push('/login');
+          return;
+        }
         let response;
-        // HTTP回退
         const httpResponse = await axios.get(
           `http://localhost:5000/api/point-cloud/results?username=${username}`
         );
@@ -369,15 +388,12 @@ export default {
     },
 
     async processFolder(folder) {
-      console.log('处理文件夹:', folder);
       this.processingFolder = folder.name;
       await this.startProcessing(folder.name);
     },
 
     async processSelectedFolder() {
       if (!this.selectedFolder) return;
-
-      console.log('处理选中的文件夹:', this.selectedFolder, this.selectedFolderDetails);
       this.processingFolder = this.selectedFolder;
       await this.startProcessing(this.selectedFolder);
     },
@@ -386,11 +402,19 @@ export default {
       try {
         // 检查用户是否已登录
         if (!this.$store.getters.isAuthenticated) {
-          this.$message.error('请先登录');
+          ElMessage.error('请先登录');
+          // 重定向到登录页
+          this.$router.push('/login');
           return;
         }
         const username = this.$store.getters.user?.username;
-        console.log(`开始处理文件夹: ${folderName}`);
+        // 确保用户名不是 undefined
+        if (!username) {
+          ElMessage.error('用户未登录，请先登录');
+          // 重定向到登录页
+          this.$router.push('/login');
+          return;
+        }
         let response;
         const httpResponse = await axios.post(
           `http://localhost:5000/api/point-cloud/process?username=${username}`,
@@ -429,8 +453,14 @@ export default {
         // 获取当前登录用户
         let username = this.$store.getters.user?.username;
         // 确保用户名不是 undefined
-        if (!username || username === 'undefined') {
-          username = 'default_user';
+        if (!username) {
+          // 停止轮询
+          this.clearTaskCheckInterval();
+          // 提示用户登录
+          ElMessage.error('用户未登录，请先登录');
+          // 重定向到登录页
+          this.$router.push('/login');
+          return;
         }
 
         // 获取任务状态
@@ -439,19 +469,15 @@ export default {
         // 尝试WebSocket获取点云任务状态
         try {
           if (!wsClient.isConnected) {
-            await wsClient.connect('ws://localhost:6010', username);
+            await wsClient.connect('ws://localhost:6009', username);
           }
           response = await wsClient.getPointCloudStatus(taskId, username);
         } catch (wsError) {
-          console.warn('WebSocket获取点云任务状态失败，回退到HTTP:', wsError);
-          // HTTP回退
           const httpResponse = await axios.get(
             `http://localhost:5000/api/point-cloud/status/${taskId}?username=${username}`
           );
           response = { data: httpResponse.data };
         }
-
-        console.log('任务状态:', response.data);
 
         // 更新任务状态
         this.currentTask = {
@@ -478,7 +504,6 @@ export default {
           }
         }
       } catch (error) {
-        console.error('获取任务状态失败:', error);
         // 如果出错，也停止轮询
         this.clearTaskCheckInterval();
         // 更新任务状态为失败
@@ -498,24 +523,25 @@ export default {
     }
   },
 
-  // 模拟检查任务状态 - 实际项目中不需要这个方法
-  async checkTaskStatus(taskId) {
-    // 这个方法在我们的模拟中不需要，因为我们直接在startTaskProgressSimulation中更新状态
-    console.log('Checking task status:', taskId);
-  },
-
-  async cancelTask() {
+      async cancelTask() {
     if (!this.currentTask || !this.currentTask.task_id) return;
 
     try {
       // 检查用户是否已登录
       if (!this.$store.getters.isAuthenticated) {
-        this.$message.error('请先登录');
+        ElMessage.error('请先登录');
+        // 重定向到登录页
+        this.$router.push('/login');
         return;
       }
       const username = this.$store.getters.user?.username;
-
-      console.log(`取消任务: ${this.currentTask.task_id}`);
+      // 确保用户名不是 undefined
+      if (!username) {
+        ElMessage.error('用户未登录，请先登录');
+        // 重定向到登录页
+        this.$router.push('/login');
+        return;
+      }
 
       // 调用后端 API 取消任务
       const response = await axios.post(
@@ -546,7 +572,9 @@ export default {
   async viewResults() {
     const username = this.$store.getters.user?.username;
     if (!username) {
-      ElMessage.error('无法获取用户信息');
+      ElMessage.error('用户未登录，请先登录');
+      // 重定向到登录页
+      this.$router.push('/login');
       return;
     }
 
@@ -560,7 +588,6 @@ export default {
       });
       this.currentResultFiles = response.data.files || [];
     } catch (error) {
-      console.error('获取结果文件失败:', error);
       ElMessage.error(error.response?.data?.message || '无法加载结果文件。');
       this.resultsDialogVisible = false;
     }
@@ -632,115 +659,6 @@ export default {
 };
 </script>
 
-<style scoped>
-.point-cloud-processor {
-  color: #fff;
-}
+<style scoped src="../assets/styles/pointCloudProcessor.css">
 
-.processor-layout {
-  display: flex;
-  gap: 20px;
-}
-.layout-left {
-  flex: 1;
-}
-.layout-right {
-  flex: 2;
-}
-
-.glass-card {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(5px);
-  border-radius: 15px;
-  padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.card-header {
-  padding-bottom: 15px;
-  margin-bottom: 15px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-}
-.card-header h6 {
-  font-weight: 600;
-}
-
-.folder-list .folder-item {
-  display: flex;
-  align-items: center;
-  padding: 10px;
-  border-radius: 8px;
-  margin-bottom: 5px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
-.folder-list .folder-item:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-.folder-list .folder-item.active {
-  background-color: rgba(78, 115, 223, 0.4);
-}
-
-/* General component styling to match the theme */
-:deep(.el-button), .btn {
-  background-color: rgba(78, 115, 223, 0.5) !important;
-  border-color: rgba(78, 115, 223, 0.8) !important;
-  color: #fff !important;
-}
-:deep(.el-button:hover), .btn:hover {
-  background-color: rgba(78, 115, 223, 0.7) !important;
-}
-
-:deep(.progress-bar) {
-    background-color: #4e73df;
-}
-:deep(.alert) {
-    background-color: rgba(0,0,0,0.2);
-    border-color: rgba(255,255,255,0.2);
-}
-
-:deep(.table) {
-  --bs-table-color: #fff;
-  --bs-table-striped-color: #fff;
-  --bs-table-hover-color: #fff;
-  --bs-table-hover-bg: rgba(255,255,255,0.1);
-  border-color: rgba(255,255,255,0.2);
-}
-
-.info-card {
-    background: rgba(0,0,0,0.2);
-    padding: 15px;
-    border-radius: 8px;
-}
-</style>
-
-<style>
-/* Glass Dialog - not scoped to penetrate el-dialog */
-.glass-dialog {
-  background: rgba(30, 30, 40, 0.8) !important;
-  backdrop-filter: blur(10px) !important;
-  border-radius: 15px !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-}
-.glass-dialog .el-dialog__title {
-  color: #fff !important;
-}
-.glass-dialog .el-dialog__headerbtn .el-dialog__close {
-  color: #fff !important;
-}
-.glass-dialog .el-table {
-  --el-table-bg-color: transparent !important;
-  --el-table-tr-bg-color: transparent !important;
-  --el-table-header-bg-color: rgba(255,255,255,0.1) !important;
-  --el-table-row-hover-bg-color: rgba(255,255,255,0.05) !important;
-  color: #f0f0f0 !important;
-}
-.glass-dialog .el-table th, .glass-dialog .el-table td {
-    background-color: transparent !important;
-    color: #f0f0f0 !important;
-    border-bottom: 1px solid rgba(255,255,255,0.2) !important;
-}
-.glass-dialog .el-table th {
-  color: #fff !important;
-}
 </style>

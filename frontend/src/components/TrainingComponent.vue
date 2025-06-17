@@ -426,7 +426,7 @@
               >
               <span class="range-value ms-2">{{ trainingParams.lambda_dssim }}</span>
             </div>
-            <div class="parameter-description">Default: 0.2</div>
+            <div class="parameter-description">默认值 0.2</div>
           </div>
 
           <div class="col-md-6">
@@ -507,7 +507,7 @@
 
       <div v-if="!currentTask || !currentTask.task_id" class="training-actions">
         <button
-          class="btn btn-primary btn-lg"
+          class="btn btn-primary btn-lg control-btn primary-btn"
           @click="startTraining"
           :disabled="!selectedFolder || isProcessing"
         >
@@ -516,7 +516,7 @@
         </button>
 
         <button
-          class="btn btn-outline-secondary"
+          class="btn btn-outline-secondary control-btn secondary-btn"
           @click="resetParams"
           :disabled="isProcessing"
         >
@@ -525,7 +525,7 @@
         </button>
 
         <button
-          class="btn btn-outline-warning"
+          class="btn btn-outline-warning control-btn warning-btn"
           @click="forceReset"
           title="强制重置所有状态"
         >
@@ -561,16 +561,16 @@
         </div>
 
         <div v-if="currentTask.status === 'processing' || currentTask.status === 'running'" class="mt-3">
-          <button class="btn btn-danger" @click="cancelTask">
+          <button class="btn btn-danger control-btn danger-btn" @click="cancelTask">
             <i class="fas fa-stop me-2"></i>  取消训练
           </button>
         </div>
 
-        <div v-if="currentTask.status === 'completed'" class="mt-3">
-          <button class="btn btn-success me-2" @click="viewResults">
+        <div v-if="currentTask.status === 'completed'" class="mt-3 action-buttons">
+          <button class="btn btn-success control-btn success-btn me-2" @click="viewResults">
             <i class="fas fa-eye me-2"></i> 查看结果
           </button>
-          <button class="btn btn-primary" @click="resetTaskState">
+          <button class="btn btn-primary control-btn primary-btn" @click="resetTaskState">
             <i class="fas fa-redo me-2"></i> 训练其他模型
           </button>
         </div>
@@ -579,7 +579,7 @@
           <div v-if="currentTask.error" class="alert alert-danger mb-3">
             <strong>Error:</strong> {{ currentTask.error }}
           </div>
-          <button class="btn btn-primary" @click="resetTaskState">
+          <button class="btn btn-primary control-btn primary-btn" @click="resetTaskState">
             <i class="fas fa-redo me-2"></i> 再次尝试
           </button>
         </div>
@@ -647,7 +647,7 @@
   </div>
 </template>
 
-<script>
+<script >
 import { eventBus } from '@/utils/eventBus';
 import { TrainingService } from '@/services/trainingService';
 import { TrainingParams } from '@/utils/trainingParams';
@@ -656,7 +656,7 @@ import { TrainingUtils } from '@/utils/trainingUtils';
 import { ElNotification, ElMessage, ElMessageBox } from 'element-plus';
 import { shallowRef } from 'vue';
 import { Delete } from '@element-plus/icons-vue';
-import wsClient from '@/utils/WebSocketClient'; // 导入新的WebSocket客户端
+import wsClient from '@/utils/WebSocketClient'; 
 
 export default {
   name: 'TrainingComponent',
@@ -721,7 +721,6 @@ export default {
   },
   watch: {
     username(newUsername, oldUsername) {
-      // Fetch data when username becomes available
       if (newUsername && newUsername !== oldUsername) {
         console.log(`[TrainingComponent] Username detected: ${newUsername}. Initializing component.`);
         this.initializeComponent();
@@ -754,7 +753,6 @@ export default {
   mounted() {
     // Initial data fetch if username is already available
     if (this.username) {
-      console.log(`[TrainingComponent] Username available on mount: ${this.username}. Initializing component.`);
       this.initializeComponent();
     } else {
       console.log('[TrainingComponent] Username not available on mount, waiting for it to be set in store.');
@@ -796,7 +794,7 @@ export default {
       this.checkActiveTask();
     },
     getUsername() {
-      return this.username || 'Unknown';
+      return this.username;
     },
 
     async fetchFolders() {
@@ -837,7 +835,6 @@ export default {
     selectFolder(folder) {
       this.selectedFolder = folder.folder_name || folder.name;
       this.selectedFolderDetails = folder;
-      console.log('Selected folder:', folder);
     },
 
     parseIterationString(str) {
@@ -865,9 +862,7 @@ export default {
       try {
         const username = this.getUsername();
         const sourcePath = this.selectedFolderDetails.output_folder;
-        console.log('Training source path:', sourcePath);
 
-        // 验证参数
         const paramValidation = TrainingParams.validateParams(this.trainingParams);
         if (!paramValidation.isValid) {
           this.$message.error('参数验证失败: ' + paramValidation.errors.join(', '));
@@ -882,8 +877,6 @@ export default {
         cleanParams.ip = 'localhost';
         cleanParams.port = 6009;
         
-        console.log('Cleaned training params with WebSocket config:', cleanParams);
-
         // 构造任务数据
         const taskData = {
           username: username,
@@ -893,12 +886,9 @@ export default {
           params: cleanParams
         };
 
-        console.log('发送训练请求，包含WebSocket配置:', taskData);
-
         const response = await TrainingService.startTraining(taskData);
         this.handleStartTrainingResponse(response);
       } catch (error) {
-        console.error('Error starting training:', error);
         this.httpError = `Failed to start training: ${error.message}`;
         this.$message.error(this.httpError);
         this.$store.dispatch('setTrainingTask', { status: 'failed', message: this.httpError, error: this.httpError });
@@ -908,7 +898,6 @@ export default {
     },
 
     handleStartTrainingResponse(data) {
-      console.log('Start training response:', data);
       if (data && data.task_id) {
         // 显示WebSocket连接信息
         if (data.websocket) {
@@ -978,7 +967,6 @@ export default {
         },
         // 错误回调
         (error) => {
-          console.error('Error polling task status:', error);
           if (error.status === 404) {
             this.$message.error('Task not found on server. Stopping updates.');
             this.clearTaskCheckInterval();
@@ -1278,105 +1266,6 @@ export default {
 };
 </script>
 
-<style scoped>
-/* Main layout for training component */
-.training-component {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  color: #fff;
-}
+<style  src="../assets/styles/trainingComponent.css">
 
-.glass-card {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(5px);
-  border-radius: 15px;
-  padding: 25px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-h5, h6 {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  padding-bottom: 10px;
-  margin-bottom: 20px !important;
-  font-weight: 600;
-}
-
-/* Form Styles */
-.parameter-row {
-  display: flex;
-  gap: 20px;
-  margin-bottom: 15px;
-}
-.parameter-row > div {
-  flex: 1;
-}
-
-.parameter-label {
-  font-weight: 500;
-  margin-bottom: 8px;
-  color: #f0f0f0;
-}
-.parameter-description {
-  font-size: 0.8em;
-  color: #ccc;
-  margin-top: 5px;
-}
-
-.form-control, .form-select {
-  background-color: rgba(0, 0, 0, 0.3);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-}
-.form-control:focus, .form-select:focus {
-  background-color: rgba(0, 0, 0, 0.4);
-  color: #fff;
-  border-color: #4e73df;
-  box-shadow: none;
-}
-.form-select option {
-  background-color: #333;
-}
-
-.form-range {
-  accent-color: #4e73df;
-}
-
-.form-check-input {
-  background-color: rgba(0,0,0,0.3);
-  border-color: rgba(255,255,255,0.3);
-}
-.form-check-input:checked {
-  background-color: #4e73df;
-  border-color: #4e73df;
-}
-
-.btn {
-  background-color: rgba(78, 115, 223, 0.6) !important;
-  border: none !important;
-}
-
-:deep(.el-table) {
-  --el-table-bg-color: transparent !important;
-  --el-table-tr-bg-color: transparent !important;
-  --el-table-header-bg-color: rgba(255,255,255,0.1) !important;
-  --el-table-row-hover-bg-color: rgba(255,255,255,0.05) !important;
-  color: #f0f0f0 !important;
-}
-:deep(.el-table th), :deep(.el-table td) {
-    background-color: transparent !important;
-    color: #f0f0f0 !important;
-    border-bottom: 1px solid rgba(255,255,255,0.2) !important;
-}
-:deep(.el-table th) {
-  color: #fff !important;
-}
-
-</style>
-<style>
-/* Remove bootstrap row negative margins if they exist */
-.row {
-    --bs-gutter-x: 1.5rem;
-}
 </style>

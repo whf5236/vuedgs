@@ -256,21 +256,6 @@
                 </div>
               </template>
             </el-upload>
-
-            <div class="folder-upload-note">
-              <el-alert
-                type="info"
-                show-icon
-                :closable="false"
-              >
-                <template #title>
-                  由于浏览器限制，您需要选择文件夹中的所有文件。
-                </template>
-                <template #default>
-                  <p>要上传文件夹结构，请选择要上传的文件夹中的所有文件。</p>
-                </template>
-              </el-alert>
-            </div>
           </el-form-item>
 
           <el-form-item label="Custom folder name (optional)">
@@ -419,7 +404,7 @@ export default {
 
       return videoTypes.includes(fileExt) || this.singleFile.type.startsWith('video/');
     },
-
+    
     validImageFiles() {
       if (!this.multipleFiles.length) return [];
 

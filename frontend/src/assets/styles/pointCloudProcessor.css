@@ -1,36 +1,290 @@
-@import './common.css';
-
 .point-cloud-processor {
-  padding: var(--spacing-md) 0;
-  min-height: 700px;
+  color: #fff;
 }
 
-.folder-list {
-  max-height: 500px;
-  overflow-y: auto;
+.processor-layout {
+  display: flex;
+  gap: 20px;
+}
+.layout-left {
+  flex: 1;
+}
+.layout-right {
+  flex: 2;
 }
 
-/* 只保留特定于点云处理器的样式 */
-.folder-action {
-  margin-left: var(--spacing-sm);
+.glass-card {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(5px);
+  border-radius: 15px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.08) !important;
+  -webkit-backdrop-filter: blur(15px) !important;
+  backdrop-filter: blur(15px) !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  padding: 10px 16px !important;
+  margin-bottom: 15px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15) !important;
+}
+.card-header h6 {
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.7);
+}
+
+.folder-list .folder-item {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 5px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+.folder-list .folder-item:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+.folder-list .folder-item.active {
+  background-color: rgba(78, 115, 223, 0.4);
+  border-color: rgba(78, 115, 223, 0.6);
+}
+
+.folder-icon {
+  margin-right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.folder-info {
+  flex: 1;
+}
+
+.folder-name {
+  font-weight: 500;
+  color: #ffffff;
+  margin-bottom: 4px;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+}
+
+.info-card {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 15px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    height: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.info-icon {
+    margin-right: 12px;
+    font-size: 20px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(78, 115, 223, 0.2);
+    border-radius: 50%;
+    color: #fff;
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+}
+
+.info-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.info-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.info-value {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+    color: #fff;
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+    font-size: 18px;
+}
+
+.folder-summary {
+    margin-bottom: 24px;
 }
 
 .processing-options {
-  background-color: var(--light-color);
-  padding: var(--spacing-md);
-  border-radius: var(--border-radius-md);
-  border: 1px solid var(--border-color);
+    margin-bottom: 24px;
+    width: 100%;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 10px;
+    padding: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.result-info {
-  background-color: var(--light-color);
-  padding: var(--spacing-md);
-  border-radius: var(--border-radius-md);
-  margin-bottom: var(--spacing-md);
-  border: 1px solid var(--border-color);
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: #ffffff;
+    margin-bottom: 12px;
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.7);
+    font-size: 16px;
 }
 
-/* 添加自定义滚动条类 */
-.folder-list {
-  composes: custom-scrollbar;
+/* 美化处理选项的checkbox */
+.form-check {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 8px;
+    padding: 12px 15px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    word-break: break-word;
+    white-space: normal;
+    overflow-wrap: break-word;
+    max-width: 100%;
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+}
+
+.form-check-input {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.3);
+    flex-shrink: 0;
+    margin-right: 10px;
+}
+
+.form-check-input:checked {
+    background-color: rgba(78, 115, 223, 0.7);
+    border-color: rgba(78, 115, 223, 0.9);
+    margin-left: 10px;
+}
+
+.form-check-label {
+    color: #fff;
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+    display: inline-block;
+    max-width: 90%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.processing-actions {
+  margin-top: 24px;
+}
+
+.processing-actions .btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 140px;
+  padding: 10px 20px;
+}
+
+/* General component styling to match the theme */
+:deep(.el-button), .btn {
+  background-color: rgba(78, 115, 223, 0.5) !important;
+  border-color: rgba(78, 115, 223, 0.8) !important;
+  color: #fff !important;
+}
+:deep(.el-button:hover), .btn:hover {
+  background-color: rgba(78, 115, 223, 0.7) !important;
+}
+
+:deep(.progress-bar) {
+    background-color: #4e73df;
+}
+:deep(.alert) {
+    background-color: rgba(0,0,0,0.2);
+    border-color: rgba(255,255,255,0.2);
+}
+
+:deep(.table) {
+  --bs-table-color: #fff;
+  --bs-table-striped-color: #fff;
+  --bs-table-hover-color: #fff;
+  --bs-table-hover-bg: rgba(255,255,255,0.15);
+  border-color: rgba(255,255,255,0.2);
+  background-color: transparent;
+}
+
+:deep(.table th), :deep(.table td) {
+  border-color: rgba(255,255,255,0.1);
+  background-color: rgba(255,255,255,0.05);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+:deep(.table thead th) {
+  background-color: rgba(78, 115, 223, 0.2);
+  border-bottom: 2px solid rgba(255,255,255,0.2);
+  color: #fff;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+}
+
+.glass-dialog {
+  background: rgba(30, 30, 40, 0.8) !important;
+  backdrop-filter: blur(10px) !important;
+  border-radius: 15px !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+.glass-dialog .el-dialog__title {
+  color: #fff !important;
+}
+.glass-dialog .el-dialog__headerbtn .el-dialog__close {
+  color: #fff !important;
+}
+.glass-dialog .el-table {
+  --el-table-bg-color: transparent !important;
+  --el-table-tr-bg-color: transparent !important;
+  --el-table-header-bg-color: rgba(255,255,255,0.1) !important;
+  --el-table-row-hover-bg-color: rgba(255,255,255,0.05) !important;
+  color: #f0f0f0 !important;
+}
+.glass-dialog .el-table th, .glass-dialog .el-table td {
+    background-color: transparent !important;
+    color: #f0f0f0 !important;
+    border-bottom: 1px solid rgba(255,255,255,0.2) !important;
+}
+.glass-dialog .el-table th {
+  color: #fff !important;
 }

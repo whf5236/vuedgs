@@ -87,6 +87,34 @@
     color: #fff;
   }
   
+  /* 滑块控件的毛玻璃效果 */
+  :deep(.el-slider__button) {
+    background: rgba(64, 158, 255, 0.4) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    border: 2px solid rgba(255, 255, 255, 0.6) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  }
+  
+  :deep(.el-slider__button:hover) {
+    transform: scale(1.1);
+    background: rgba(64, 158, 255, 0.6) !important;
+  }
+  
+  :deep(.el-input-number__increase),
+  :deep(.el-input-number__decrease) {
+    background: rgba(64, 158, 255, 0.3) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: white !important;
+  }
+  
+  :deep(.el-input-number__increase:hover),
+  :deep(.el-input-number__decrease:hover) {
+    background: rgba(64, 158, 255, 0.5) !important;
+  }
+  
   :deep(.el-upload-dragger) {
     background-color: rgba(0, 0, 0, 0.2);
     border: 1px dashed rgba(255, 255, 255, 0.3);
