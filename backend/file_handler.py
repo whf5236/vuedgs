@@ -465,7 +465,7 @@ def delete_training_output_folder(username, folder_name):
     try:
         # 训练输出文件夹通常位于 'data/{username}/output/{folder_name}'
         base_dir = current_app.config['UPLOAD_FOLDER']
-        output_dir_parent = os.path.join(base_dir, username, 'output')
+        output_dir_parent = os.path.join(base_dir, username, 'models')
         folder_to_delete = os.path.join(output_dir_parent, folder_name)
 
         # 安全性检查：确保路径在用户输出目录下

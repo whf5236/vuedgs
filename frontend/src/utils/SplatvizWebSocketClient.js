@@ -1,8 +1,3 @@
-// src/utils/SplatvizWebSocketClient.js
-
-/**
- * A dedicated WebSocket client for Splatviz communication, using the native WebSocket API.
- */
 class SplatvizWebSocketClient {
   constructor() {
     this.ws = null;

@@ -37,6 +37,11 @@ class WebSocketClient {
       });
     });
   }
+
+  registerDefaultHandlers() {
+    // Placeholder for any default event handlers
+    console.log('WebSocketClient: Default handlers can be registered here.');
+  }
   
   disconnect() {
     if (this.socket) {
@@ -49,6 +54,27 @@ class WebSocketClient {
       return this.socket && this.socket.connected;
   }
 
+  on(eventName, callback) {
+    if (this.socket) {
+      this.socket.on(eventName, callback);
+    } else {
+      console.warn('Socket.IO 未连接，无法监听事件:', eventName);
+    }
+  }
+
+  off(eventName, callback) {
+    if (this.socket) {
+      if (callback) {
+        this.socket.off(eventName, callback);
+      } else {
+        // If no callback is provided, remove all listeners for the event
+        this.socket.off(eventName);
+      }
+    } else {
+      console.warn('Socket.IO 未连接，无法移除事件监听:', eventName);
+    }
+  }
+
   // 使用emit发送事件
   emit(eventName, data) {
     if (!this.isConnected()) {
@@ -59,46 +85,36 @@ class WebSocketClient {
   }
   
   // 发送请求并等待响应 (使用 acknowledgements)
-  emitWithAck(eventName, data, timeout = 10000) {
-    return new Promise((resolve, reject) => {
-      if (!this.isConnected()) {
-        return reject(new Error('Socket.IO 未连接'));
+ // c:\Users\whf\Desktop\workspace\login_project\frontend\src\utils\WebSocketClient.js
+emitWithAck(eventName, data, timeout = 10000) {
+  return new Promise((resolve, reject) => {
+    if (!this.isConnected()) {
+      return reject(new Error('Socket.IO 未连接'));
+    }
+    
+    // Socket.IO ack 回调的第一个参数是 err, 第二个是 data
+    this.socket.timeout(timeout).emit(eventName, data, (err, responseData) => { 
+      console.log(`收到 ${eventName} ack 回调: err=`, err, `, responseData=`, responseData);
+      
+      if (err) {
+        // 如果 err 存在，说明请求过程中发生错误 (例如超时)
+        console.error(`事件 ${eventName} 的 ack 回调错误:`, err);
+        return reject(err instanceof Error ? err : new Error(err.message || '请求失败或超时'));
       }
       
-      this.socket.timeout(timeout).emit(eventName, data, (response) => { 
-        console.log(`收到${eventName}响应:`, response);
-        
-        if (response) {
-          resolve(response);
-        } else {
-          reject(new Error('请求失败，未收到任何响应。'));
-        }
-      });
+      // 即使 err 为 null/undefined，responseData 也可能不存在或不符合预期
+      // 后端返回的 {'status': 'success', ...} 或 {'status': 'error', ...} 会在 responseData 中
+      if (responseData) {
+        resolve(responseData); 
+      } else {
+        // 这种情况理论上不应该发生，如果后端总是返回一个对象
+        // 但作为防御性编程，可以处理一下
+        console.warn(`事件 ${eventName} 的 ack 回调未收到预期的响应数据。`);
+        reject(new Error('请求成功，但未收到预期的响应数据。'));
+      }
     });
-  }
-  
-  // 注册消息处理器
-  on(eventName, handler) {
-    if (this.socket) {
-        this.socket.on(eventName, handler);
-    }
-    this.messageHandlers.set(eventName, handler);
-  }
-  
-  // 移除消息处理器
-  off(eventName) {
-    if (this.socket) {
-        this.socket.off(eventName);
-    }
-    this.messageHandlers.delete(eventName);
-  }
-  
-  registerDefaultHandlers() {
-      this.messageHandlers.forEach((handler, eventName) => {
-          this.socket.on(eventName, handler);
-    });
-  }
-  
+  });
+}
   // --- API 方法 ---
   
   async deleteFolder(username, folderName) {
