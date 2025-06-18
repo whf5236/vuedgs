@@ -43,7 +43,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     ema_loss_for_log = 0.0
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
-    network = SplatvizNetworkWs()
+    network = SplatvizNetworkWs(ip, port)
+    network.start_server_in_thread()  # 启动WebSocket服务器
     for iteration in range(first_iter, opt.iterations + 1):
         network.render_and_respond_async(pipe, gaussians, ema_loss_for_log, render, background, iteration, opt)
         gaussians.update_learning_rate(iteration)
@@ -98,18 +99,6 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     
 
 def prepare_output_and_logger(args):    
-    if not args.model_path:
-        if os.getenv('OAR_JOB_ID'):
-            unique_str=os.getenv('OAR_JOB_ID')
-        else:
-            unique_str = str(uuid.uuid4())
-        if unique_str:
-            args.model_path = os.path.join("./output/", unique_str[0:10])
-        else:
-            args.model_path = os.path.join("./output/", "default")
-        
-    # Set up output folder
-    print("Output folder: {}".format(args.model_path))
     os.makedirs(args.model_path, exist_ok = True)
     with open(os.path.join(args.model_path, "cfg_args"), 'w') as cfg_log_f:
         cfg_log_f.write(str(Namespace(**vars(args))))
@@ -139,23 +128,17 @@ def parse_arguments():
     
     # 处理输出路径
     args = prepare_output_and_logger(args)
-    
     return args, lp, op, pp
 
 
 if __name__ == "__main__":
     # 解析参数
     args, lp, op, pp = parse_arguments()
-
     log_file_path = os.path.join(args.model_path, "train_script_crash.log")
 
     try:
         safe_state(args.quiet)
-
         training(lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from, args.ip, args.port)
-
-        # All done
-        print("\nTraining complete.")
         
     except Exception as e:
         # Create a detailed error report

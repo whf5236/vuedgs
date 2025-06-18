@@ -83,7 +83,7 @@
                 </div>
               </template>
               <div class="tab-content">
-                <TrainingVisualizationComponent />
+                <TrainingVisualizationComponent :training-status="trainingStatus" />
               </div>
             </el-tab-pane>
 
@@ -170,6 +170,18 @@ export default {
     },
     userInitial() {
       return this.username.charAt(0).toUpperCase()
+    },
+    trainingStatus() {
+      const currentTask = this.$store.getters.trainingCurrentTask;
+      if (!currentTask) {
+        return { is_active: false };
+      }
+      return {
+        is_active: true,
+        task_id: currentTask.task_id,
+        folder_name: currentTask.folder_name,
+        status: currentTask.status || 'running'
+      };
     }
   },
   created() {

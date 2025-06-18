@@ -590,7 +590,7 @@
     <div class="parameter-section glass-card">
       <h5>
         <i class="fas fa-history me-2"></i>
-        Training History
+        训练历史记录
       </h5>
 
       <div v-if="loadingResults" class="text-center py-3">
@@ -670,7 +670,13 @@ export default {
       taskCheckInterval: null,
       isProcessing: false,
       httpError: null,
-
+      
+      // 添加状态监控计时器和计数器
+      stateMonitorInterval: null,
+      stateChangeCounter: 0,
+      lastTaskStatus: null,
+      lastStateChangeTime: null,
+      
       // 用于处理空格分隔的迭代列表
       testIterationsInput: "7000 30000",
       saveIterationsInput: "7000 30000",
@@ -719,7 +725,7 @@ export default {
     username(newUsername, oldUsername) {
       if (newUsername && newUsername !== oldUsername) {
         console.log(`[TrainingComponent] Username detected: ${newUsername}. Initializing component.`);
-        this.initializeComponent();
+        this.syncAndInitialize();
       }
     },
     currentTask(newTask, oldTask) {
@@ -748,7 +754,7 @@ export default {
   mounted() {
     // Initial data fetch if username is already available
     if (this.username) {
-      this.initializeComponent();
+      this.syncAndInitialize();
     } else {
       console.log('[TrainingComponent] Username not available on mount, waiting for it to be set in store.');
     }
@@ -769,26 +775,80 @@ export default {
     
     // 添加训练状态更新监听
     wsClient.on('training_status_update', this.handleTrainingStatusUpdate);
+    
+    // 启动状态监控计时器
+    this.startStateMonitor();
+    eventBus.on('visualization-active', this.handleVisualizationActivity);
   },
   beforeUnmount() {
     // 清理轮询和事件监听
     this.clearTaskCheckInterval();
     eventBus.off('point-cloud-processed', this.handlePointCloudProcessed);
-    
+    eventBus.off('visualization-active', this.handleVisualizationActivity); // 添加这一行
     // 移除所有监听并断开连接
     wsClient.off('folders_updated');
     wsClient.off('training_status_update');
     if(wsClient.isConnected()) {
         wsClient.disconnect();
     }
+    
+    // 清理状态监控计时器
+    this.clearStateMonitor();
   },
   methods: {
-    initializeComponent() {
-      this.checkAndCleanInvalidState();
+    async syncAndInitialize() {
+      await this.syncTaskWithBackend();
       this.fetchFolders();
       this.fetchResults();
-      this.checkActiveTask();
     },
+    handleVisualizationActivity() {
+      const task = this.currentTask;
+      
+      if (!task || !task.task_id || !['running', 'processing'].includes(task.status)) {
+        console.warn('Inconsistent state detected: Visualization is active, but UI shows no running task. Forcing state synchronization.');
+        this.syncTaskWithBackend();
+      }
+    },
+    async syncTaskWithBackend() {
+      console.log("Syncing task state with backend to prevent stale cache issues.");
+      try {
+        const username = this.getUsername();
+        if (!username) {
+            this.$store.dispatch('clearTrainingTask');
+            this.isProcessing = false;
+            return;
+        }
+
+        const response = await TrainingService.checkActiveTask(username);
+        const activeTask = (response && response.active_tasks && response.active_tasks.length > 0) ? response.active_tasks[0] : null;
+
+        if (activeTask && ['running', 'processing'].includes(activeTask.status)) {
+            console.log(`Backend reports active task: ${activeTask.task_id} with status ${activeTask.status}`);
+            const taskData = {
+                task_id: activeTask.task_id,
+                status: activeTask.status,
+                progress: activeTask.progress || 0,
+                message: activeTask.message || 'Restored active task...',
+                output_logs: activeTask.output_logs || [],
+                start_time: activeTask.start_time,
+                folder_name: activeTask.folder_name || (activeTask.source_path ? activeTask.source_path.split('/').pop() : 'Unknown'),
+            };
+            this.$store.dispatch('setTrainingTask', taskData);
+            this.selectedFolder = taskData.folder_name;
+            this.isProcessing = true;
+        } else {
+            console.log("Backend reports no active tasks, or task is in a final state. Clearing local state.");
+            this.$store.dispatch('clearTrainingTask');
+            this.isProcessing = false;
+        }
+      } catch (error) {
+        console.error('Failed to sync task state with backend:', error);
+        this.$message.error('无法同步训练状态，将清除本地状态以避免界面卡死');
+        this.$store.dispatch('clearTrainingTask');
+        this.isProcessing = false;
+      }
+    },
+
     getUsername() {
       return this.username;
     },
@@ -873,6 +933,9 @@ export default {
 
       this.isProcessing = true;
       this.httpError = null;
+      
+      // 重置状态监控计数器
+      this.resetStateMonitorCounters();
 
       try {
         const username = this.getUsername();
@@ -1119,8 +1182,15 @@ export default {
 
     checkAndCleanInvalidState() {
       const task = this.$store.getters.trainingCurrentTask;
+      
+      // 状态一致性检查 - 如果没有任务但isProcessing为true，重置它
+      if ((!task || !task.task_id) && this.isProcessing) {
+        console.warn('检测到无效状态：isProcessing=true但没有训练任务');
+        this.isProcessing = false;
+      }
+      
       if (task && task.task_id && (task.status === 'running' || task.status === 'processing')) {
-         // 这里应该显示任务ID
+        // 这里应该显示任务ID
         this.verifyTaskStatusWithBackend(task.task_id);
       } else if (task && (task.status === 'cancelled' || task.status === 'failed' || task.status === 'completed')) {
         this.resetTaskState();
@@ -1361,6 +1431,9 @@ export default {
 
     handleTrainingStatusUpdate(data) {
       if (!data) return;
+      
+      // 记录状态变化
+      this.recordStateChange(data.status);
         
       // 更新Vuex存储中的任务状态
       const updatedTaskData = {
@@ -1381,6 +1454,105 @@ export default {
           setTimeout(() => this.resetTaskState(), 1500);
         }
         this.fetchResults();
+      }
+    },
+    
+    // 添加状态监控相关方法
+    startStateMonitor() {
+      // 清除任何现有的监控器
+      this.clearStateMonitor();
+      
+      // 设置初始状态
+      this.lastTaskStatus = this.currentTask?.status || 'idle';
+      this.lastStateChangeTime = Date.now();
+      this.stateChangeCounter = 0;
+      
+      // 创建新的监控器 - 每10秒检查一次状态
+      this.stateMonitorInterval = setInterval(() => {
+        this.checkStateStability();
+      }, 10000);
+    },
+    
+    clearStateMonitor() {
+      if (this.stateMonitorInterval) {
+        clearInterval(this.stateMonitorInterval);
+        this.stateMonitorInterval = null;
+      }
+    },
+    
+    resetStateMonitorCounters() {
+      this.stateChangeCounter = 0;
+      this.lastStateChangeTime = Date.now();
+      this.lastTaskStatus = this.currentTask?.status || 'idle';
+    },
+    
+    recordStateChange(newStatus) {
+      if (newStatus !== this.lastTaskStatus) {
+        this.lastTaskStatus = newStatus;
+        this.lastStateChangeTime = Date.now();
+        this.stateChangeCounter = 0;
+      }
+    },
+    
+    checkStateStability() {
+      // 只有在训练过程中才进行状态稳定性检查
+      if (!this.currentTask || !this.currentTask.task_id) {
+        return;
+      }
+      
+      // 如果处于"processing"或"running"状态，检查是否长时间未变化
+      if (
+        (this.currentTask.status === 'processing' || this.currentTask.status === 'running') && 
+        this.isProcessing
+      ) {
+        const now = Date.now();
+        const elapsedSeconds = (now - this.lastStateChangeTime) / 1000;
+        
+        // 增加计数器
+        this.stateChangeCounter++;
+        
+        // 如果状态超过2分钟未变化，且至少检查了10次
+        if (elapsedSeconds > 120 && this.stateChangeCounter >= 10) {
+          console.warn(`训练状态 "${this.currentTask.status}" 已经 ${Math.floor(elapsedSeconds)} 秒未变化，可能卡住了`);
+          
+          // 弹出通知，询问用户是否要重置
+          ElMessageBox.confirm(
+            `训练状态似乎已经${Math.floor(elapsedSeconds)}秒未更新。可能是后端通信问题或训练过程卡住了。`,
+            '训练状态可能卡住',
+            {
+              confirmButtonText: '重置状态',
+              cancelButtonText: '继续等待',
+              type: 'warning'
+            }
+          ).then(() => {
+            // 用户选择重置
+            this.forceReset();
+          }).catch(() => {
+            // 用户选择继续等待，重置计数器
+            this.resetStateMonitorCounters();
+          });
+        }
+        
+        // 如果状态超过5分钟未变化，自动重置
+        if (elapsedSeconds > 300) {
+          console.error(`训练状态 "${this.currentTask.status}" 已经 ${Math.floor(elapsedSeconds)} 秒未变化，自动重置`);
+          ElNotification({
+            title: '状态自动重置',
+            message: `训练状态已超过5分钟未更新，系统已自动重置`,
+            type: 'warning',
+            position: 'top-right',
+            duration: 3000
+          });
+          this.forceReset();
+        }
+      }
+      
+      // 检查isProcessing是否卡住 - 如果没有活动任务但isProcessing为true
+      if (this.isProcessing && (!this.currentTask || !this.currentTask.task_id || 
+          ['completed', 'failed', 'cancelled'].includes(this.currentTask.status))) {
+        console.warn('检测到处理状态不一致：isProcessing=true但没有活动任务');
+        // 重置处理状态
+        this.isProcessing = false;
       }
     },
   }

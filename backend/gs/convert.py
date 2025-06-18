@@ -37,8 +37,7 @@ use_gpu = 1 if not args.no_gpu else 0
 
 # 如果没有指定输出路径，使用源路径
 output_path = args.output_path if args.output_path else args.source_path
-logger.info(f"Source path: {args.source_path}")
-logger.info(f"Output path: {output_path}")
+
 
 # 检查路径是否存在
 if not os.path.exists(args.source_path):
@@ -56,9 +55,6 @@ image_files = [f for f in os.listdir(source_images) if os.path.isfile(os.path.jo
 if not image_files:
     logger.error(f"源图像文件夹中没有图像文件: {source_images}")
     exit(1)
-
-logger.info(f"源图像文件夹中找到 {len(image_files)} 个图像文件")
-
 # 确保输出目录存在
 os.makedirs(output_path, exist_ok=True)
 logger.info(f"已创建输出目录: {output_path}")
@@ -90,7 +86,6 @@ if not args.skip_matching:
 
             # 检查是否所有图像尺寸一致
             if len(set(image_sizes.values())) > 1:
-                logger.warning("检测到图像尺寸不一致，将调整所有图像到相同尺寸")
                 # 找出最常见的尺寸
                 size_counts = {}
                 for size in image_sizes.values():

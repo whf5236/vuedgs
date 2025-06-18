@@ -114,9 +114,7 @@ emitWithAck(eventName, data, timeout = 10000) {
       }
     });
   });
-}
-  // --- API 方法 ---
-  
+}  
   async deleteFolder(username, folderName) {
     const token = localStorage.getItem('token');
       return this.emitWithAck('delete_folder', {
